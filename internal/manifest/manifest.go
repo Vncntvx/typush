@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 )
@@ -30,10 +31,13 @@ var Disciplines = []string{
 }
 
 // Manifest maps typst.toml. Unknown [tool.*] tables are preserved via Tool.
+// Undecoded holds unknown top-level/package/template keys (bundler rejects them).
 type Manifest struct {
 	Package  PackageInfo    `toml:"package"`
 	Template *TemplateInfo  `toml:"template,omitempty"`
 	Tool     map[string]any `toml:"tool,omitempty"`
+
+	undecoded []string
 }
 
 type PackageInfo struct {
@@ -59,13 +63,34 @@ type TemplateInfo struct {
 }
 
 var (
-	nameRe    = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*$`)
 	versionRe = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.\-]+)?(\+[0-9A-Za-z.\-]+)?$`)
 )
 
+// IsIdent reports whether s is a valid Typst identifier: first char is a
+// Unicode letter or '_', rest are letters, digits, '_' or '-'.
+// (Approximates unicode_ident XID rules used by the official bundler.)
+func IsIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, c := range s {
+		switch {
+		case i == 0:
+			if !(unicode.IsLetter(c) || c == '_') {
+				return false
+			}
+		default:
+			if !(unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func ValidateName(name string) error {
-	if !nameRe.MatchString(name) {
-		return fmt.Errorf("invalid package name %q: must match %s", name, nameRe.String())
+	if !IsIdent(name) {
+		return fmt.Errorf("package name %q is not a valid identifier", name)
 	}
 	return nil
 }
@@ -153,15 +178,19 @@ func ValidateEntrypoint(e string) error {
 	return nil
 }
 
-// Read reads and validates typst.toml under dir.
+// Read reads and validates typst.toml under dir (compiler-minimal rules).
 func Read(dir string) (*Manifest, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "typst.toml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the package manifest file: %w", err)
 	}
 	var m Manifest
-	if err := toml.Unmarshal(data, &m); err != nil {
+	md, err := toml.Decode(string(data), &m)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse the package manifest: %w", err)
+	}
+	for _, k := range md.Undecoded() {
+		m.undecoded = append(m.undecoded, k.String())
 	}
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -169,7 +198,10 @@ func Read(dir string) (*Manifest, error) {
 	return &m, nil
 }
 
-// Validate checks required fields.
+// Undecoded returns unknown manifest keys (rejected by the official bundler).
+func (m *Manifest) Undecoded() []string { return m.undecoded }
+
+// Validate checks compiler-minimal fields (name/version/entrypoint/authors).
 func (m *Manifest) Validate() error {
 	if err := ValidateName(m.Package.Name); err != nil {
 		return err
@@ -197,6 +229,101 @@ func (m *Manifest) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ValidateUniverse checks the manifest-only Universe submission rules,
+// mirroring typst/packages bundler parse_manifest. Filesystem checks
+// (entrypoint/README/thumbnail existence, excludes) live in checkpkg.
+func (m *Manifest) ValidateUniverse() error {
+	if len(m.undecoded) > 0 {
+		return fmt.Errorf("unknown fields: %v", m.undecoded)
+	}
+	if err := m.Validate(); err != nil {
+		return err
+	}
+	for _, a := range m.Package.Authors {
+		if err := ValidateAuthor(a); err != nil {
+			return fmt.Errorf("error while checking author name: %w", err)
+		}
+	}
+	if m.Package.Description == nil {
+		return fmt.Errorf("package description is missing")
+	}
+	if len(m.Package.Categories) > 3 {
+		return fmt.Errorf("package can have at most 3 categories")
+	}
+	for _, c := range m.Package.Categories {
+		if !IsCategory(c) {
+			return fmt.Errorf("unknown category %q", c)
+		}
+	}
+	for _, d := range m.Package.Disciplines {
+		if !IsDiscipline(d) {
+			return fmt.Errorf("unknown discipline %q", d)
+		}
+	}
+	if m.Package.License == nil {
+		return fmt.Errorf("package license is missing")
+	}
+	if err := ValidateLicense(*m.Package.License); err != nil {
+		return err
+	}
+	if m.Template != nil && len(m.Package.Categories) == 0 {
+		return fmt.Errorf("template packages must have at least one category")
+	}
+	for _, e := range m.Package.Exclude {
+		if strings.HasPrefix(e, "!") {
+			return fmt.Errorf("exclude globs with '!' are not supported: %q", e)
+		}
+	}
+	return nil
+}
+
+// WarnUniverse returns style warnings (naming/description guidance).
+// These never fail the official bundler but commonly delay acceptance.
+func (m *Manifest) WarnUniverse() []string {
+	var out []string
+	if strings.Contains(strings.ToLower(m.Package.Name), "typst") {
+		out = append(out, "package name should not include the word \"typst\" (redundant)")
+	}
+	if m.Package.Name != strings.ToLower(m.Package.Name) {
+		out = append(out, "package name should use kebab-case")
+	}
+	if d := m.Package.Description; d != nil {
+		n := len([]rune(*d))
+		if n < 10 {
+			out = append(out, "package description looks too short (aim for one sentence, 40-60 chars)")
+		} else if n > 200 {
+			out = append(out, "package description looks too long (aim for one sentence, 40-60 chars)")
+		}
+		lower := strings.ToLower(*d)
+		if strings.Contains(lower, "typst package") || strings.Contains(lower, "typst template") {
+			out = append(out, "avoid the redundant words \"Typst\"/\"package\"/\"template\" in the description")
+		}
+	}
+	if m.Package.Homepage != nil && m.Package.Repository != nil &&
+		*m.Package.Homepage == *m.Package.Repository {
+		out = append(out, "homepage duplicates repository; omit homepage and prefer repository")
+	}
+	return out
+}
+
+func IsCategory(c string) bool {
+	for _, k := range Categories {
+		if k == c {
+			return true
+		}
+	}
+	return false
+}
+
+func IsDiscipline(d string) bool {
+	for _, k := range Disciplines {
+		if k == d {
+			return true
+		}
+	}
+	return false
 }
 
 // Write writes typst.toml under dir.

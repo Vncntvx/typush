@@ -7,14 +7,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Vncntvx/typush-go/internal/checkpkg"
-	"github.com/Vncntvx/typush-go/internal/ci"
-	"github.com/Vncntvx/typush-go/internal/devclean"
-	"github.com/Vncntvx/typush-go/internal/download"
-	"github.com/Vncntvx/typush-go/internal/excludepkg"
-	"github.com/Vncntvx/typush-go/internal/initpkg"
-	"github.com/Vncntvx/typush-go/internal/install"
-	"github.com/Vncntvx/typush-go/internal/universe"
+	"github.com/Vncntvx/typkg/internal/checkpkg"
+	"github.com/Vncntvx/typkg/internal/ci"
+	"github.com/Vncntvx/typkg/internal/devclean"
+	"github.com/Vncntvx/typkg/internal/download"
+	"github.com/Vncntvx/typkg/internal/excludepkg"
+	"github.com/Vncntvx/typkg/internal/initpkg"
+	"github.com/Vncntvx/typkg/internal/install"
+	"github.com/Vncntvx/typkg/internal/universe"
 )
 
 var (
@@ -23,7 +23,7 @@ var (
 
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "typush",
+		Use:   "typkg",
 		Short: "A simple package manager for Typst",
 		Long:  "A simple package manager for Typst",
 	}
@@ -55,14 +55,17 @@ func cwd() string {
 }
 
 func newCheckCmd() *cobra.Command {
-	return &cobra.Command{
+	var local bool
+	c := &cobra.Command{
 		Use:   "check",
 		Short: "Check if the package is valid",
-		Long:  "Check if the package is valid. Must be in the package directory.",
+		Long:  "Check if the package is valid against Universe submission rules (default) or compiler-minimal rules (--local). Must be in the package directory.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkpkg.Run(cwd())
+			return checkpkg.RunWith(cwd(), checkpkg.Options{Local: local})
 		},
 	}
+	c.Flags().BoolVar(&local, "local", false, "Only check compiler-minimal rules (name/version/entrypoint)")
+	return c
 }
 
 func newCleanCmd() *cobra.Command {
@@ -215,7 +218,7 @@ func newCICmd() *cobra.Command {
 	return c
 }
 
-// Back-compat: `typush host` == `typush ci plan`
+// Back-compat: `typkg host` == `typkg ci plan`
 func newHostAliasCmd() *cobra.Command {
 	var packages string
 	c := &cobra.Command{
@@ -239,7 +242,7 @@ func newHostAliasCmd() *cobra.Command {
 	return c
 }
 
-// Back-compat: `typush generate` == `typush ci generate`
+// Back-compat: `typkg generate` == `typkg ci generate`
 func newGenerateAliasCmd() *cobra.Command {
 	var source, pushToFork, destination string
 	c := &cobra.Command{

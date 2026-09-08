@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/Vncntvx/typush-go/internal/walker"
+	"github.com/Vncntvx/typkg/internal/walker"
 )
 
 func testRoot() string {

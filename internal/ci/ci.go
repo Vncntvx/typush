@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Vncntvx/typush-go/internal/manifest"
-	"github.com/Vncntvx/typush-go/internal/walker"
+	"github.com/Vncntvx/typkg/internal/manifest"
+	"github.com/Vncntvx/typkg/internal/walker"
 )
 
 //go:embed release-typst.yml

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	gh "github.com/Vncntvx/typush-go/internal/github"
+	gh "github.com/Vncntvx/typkg/internal/github"
 )
 
 func mockServer() *httptest.Server {

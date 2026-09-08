@@ -51,8 +51,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ">=1.23"
-      - name: Set up typush
-        run: go install github.com/Vncntvx/typush-go/cmd/typush@latest
+      - name: Set up typkg
+        run: go install github.com/Vncntvx/typkg/cmd/typkg@latest
       # sure would be cool if github gave us proper conditionals...
       # so here's a doubly-nested ternary-via-truthiness to try to provide the best possible
       # functionality based on whether this is a pull_request, and whether it's from a fork.
@@ -60,15 +60,15 @@ jobs:
       # but also really annoying to build CI around when it needs secrets to work right.)
       - id: plan
         run: |
-          typush ci plan --packages=${{ inputs.packages }} > plan-typush-manifest.json
-          echo "typush ran successfully"
-          cat plan-typush-manifest.json
-          echo "manifest=$(jq -c "." plan-typush-manifest.json)" >> "$GITHUB_OUTPUT"
-      - name: "Upload typush-manifest.json"
+          typkg ci plan --packages=${{ inputs.packages }} > plan-typkg-manifest.json
+          echo "typkg ran successfully"
+          cat plan-typkg-manifest.json
+          echo "manifest=$(jq -c "." plan-typkg-manifest.json)" >> "$GITHUB_OUTPUT"
+      - name: "Upload typkg-manifest.json"
         uses: actions/upload-artifact@v4
         with:
-          name: artifacts-plan-typush-manifest
-          path: plan-typush-manifest.json
+          name: artifacts-plan-typkg-manifest
+          path: plan-typkg-manifest.json
 
   publish:
     name: publish (${{ matrix.package.name }}:${{ matrix.package.version }})

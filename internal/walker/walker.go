@@ -61,18 +61,21 @@ func loadIgnoreFile(path string) []string {
 	return out
 }
 
-func matchIgnore(pattern, rel string, isDir bool) bool {
+func matchIgnore(pattern, rel string, isDir bool) (matched, negated bool) {
 	neg := false
 	if strings.HasPrefix(pattern, "!") {
 		neg = true
 		pattern = pattern[1:]
-		_ = neg // negation not fully supported; treat as non-match (conservative include)
-		return false
 	}
 	pattern = strings.TrimSuffix(pattern, "\r")
 	if pattern == "" {
-		return false
+		return false, false
 	}
+	hit := matchIgnorePositive(pattern, rel, isDir)
+	return hit, neg && hit
+}
+
+func matchIgnorePositive(pattern, rel string, isDir bool) bool {
 	// Directory-only pattern "foo/" matches "foo" and "foo/..."
 	if strings.HasSuffix(pattern, "/") {
 		base := strings.TrimSuffix(pattern, "/")
@@ -133,9 +136,11 @@ func walk(root string, excludes []string) ([]string, error) {
 
 	var walkFn func(dir string, inherited []string) error
 	walkFn = func(dir string, inherited []string) error {
-		// accumulate patterns from this dir's .typstignore
+		// accumulate patterns from this dir's ignore files
+		// (.typstignore first, then .gitignore so repo ignores can extend it)
 		cur := append([]string{}, inherited...)
 		cur = append(cur, loadIgnoreFile(filepath.Join(dir, ".typstignore"))...)
+		cur = append(cur, loadIgnoreFile(filepath.Join(dir, ".gitignore"))...)
 
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -152,14 +157,14 @@ func walk(root string, excludes []string) ([]string, error) {
 			if name == ".git" {
 				continue
 			}
-			if isHiddenName(name) && name != ".typstignore" {
+			if isHiddenName(name) && name != ".typstignore" && name != ".gitignore" {
 				// skip hidden files/dirs entirely (matches ignore crate standard filters)
 				if e.IsDir() {
 					continue
 				}
 				continue
 			}
-			if name == ".typstignore" {
+			if name == ".typstignore" || name == ".gitignore" {
 				continue // read but never returned
 			}
 
@@ -221,12 +226,15 @@ func walk(root string, excludes []string) ([]string, error) {
 }
 
 func ignoredBy(patterns []string, rel string, isDir bool) bool {
+	ignored := false
 	for _, p := range patterns {
-		if matchIgnore(p, rel, isDir) {
-			return true
+		hit, neg := matchIgnore(p, rel, isDir)
+		if !hit {
+			continue
 		}
+		ignored = !neg // last matching pattern wins (gitignore order)
 	}
-	return false
+	return ignored
 }
 
 func excludedBy(excludes []string, rel string) bool {

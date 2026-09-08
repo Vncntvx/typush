@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Vncntvx/typush-go/internal/config"
-	"github.com/Vncntvx/typush-go/internal/manifest"
-	"github.com/Vncntvx/typush-go/internal/universe"
+	"github.com/Vncntvx/typkg/internal/config"
+	"github.com/Vncntvx/typkg/internal/manifest"
+	"github.com/Vncntvx/typkg/internal/universe"
 )
 
 // Dev creates a preview symlink for local development.

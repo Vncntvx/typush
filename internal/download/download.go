@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/Vncntvx/typush-go/internal/config"
-	"github.com/Vncntvx/typush-go/internal/install"
+	"github.com/Vncntvx/typkg/internal/config"
+	"github.com/Vncntvx/typkg/internal/install"
 )
 
 // Run clones repo (+ optional checkout ref) into a temp dir then installs.

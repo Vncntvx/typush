@@ -3,8 +3,8 @@ package excludepkg
 import (
 	"fmt"
 
-	"github.com/Vncntvx/typush-go/internal/manifest"
-	"github.com/Vncntvx/typush-go/internal/walker"
+	"github.com/Vncntvx/typkg/internal/manifest"
+	"github.com/Vncntvx/typkg/internal/walker"
 )
 
 // Add appends files to package.exclude (dedup) after validating globs.

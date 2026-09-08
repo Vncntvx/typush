@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Vncntvx/typush-go/internal/cliutil"
-	"github.com/Vncntvx/typush-go/internal/manifest"
+	"github.com/Vncntvx/typkg/internal/cliutil"
+	"github.com/Vncntvx/typkg/internal/manifest"
 )
 
 // Run interactively initializes a new package in dir.
@@ -184,7 +184,8 @@ func Run(dir, nameArg string) error {
 		}
 		var tplEntry string
 		for {
-			v, err := cliutil.PromptLine("Enter the template entrypoint", tplPath+"/main.typ", false)
+			// Entrypoint is relative to the template path (official spec).
+			v, err := cliutil.PromptLine("Enter the template entrypoint (relative to template path)", "main.typ", false)
 			if err != nil {
 				return err
 			}

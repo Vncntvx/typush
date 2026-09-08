@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Vncntvx/typush-go/internal/cliutil"
-	"github.com/Vncntvx/typush-go/internal/config"
-	"github.com/Vncntvx/typush-go/internal/manifest"
-	"github.com/Vncntvx/typush-go/internal/walker"
+	"github.com/Vncntvx/typkg/internal/cliutil"
+	"github.com/Vncntvx/typkg/internal/config"
+	"github.com/Vncntvx/typkg/internal/manifest"
+	"github.com/Vncntvx/typkg/internal/walker"
 )
 
 // Run installs the package at srcDir into namespace target (without @ prefix handling).

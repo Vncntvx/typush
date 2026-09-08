@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/Vncntvx/typush-go/internal/cmd"
+	"github.com/Vncntvx/typkg/internal/cmd"
 )
 
 var version = "dev"

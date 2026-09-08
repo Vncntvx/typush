@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Vncntvx/typush-go/internal/config"
+	"github.com/Vncntvx/typkg/internal/config"
 )
 
 // CleanOne removes dev symlinks for one package under preview/.

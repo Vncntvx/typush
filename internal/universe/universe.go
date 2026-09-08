@@ -7,11 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Vncntvx/typush-go/internal/cliutil"
-	"github.com/Vncntvx/typush-go/internal/config"
-	gh "github.com/Vncntvx/typush-go/internal/github"
-	"github.com/Vncntvx/typush-go/internal/manifest"
-	"github.com/Vncntvx/typush-go/internal/walker"
+	"github.com/Vncntvx/typkg/internal/checkpkg"
+	"github.com/Vncntvx/typkg/internal/cliutil"
+	"github.com/Vncntvx/typkg/internal/config"
+	gh "github.com/Vncntvx/typkg/internal/github"
+	"github.com/Vncntvx/typkg/internal/manifest"
+	"github.com/Vncntvx/typkg/internal/walker"
 )
 
 func publicClient() *gh.Client { return gh.New("") }
@@ -22,7 +23,7 @@ func authedClient() (*gh.Client, error) {
 		return nil, err
 	}
 	if cfg.Tokens.Universe == nil || strings.TrimSpace(*cfg.Tokens.Universe) == "" {
-		return nil, fmt.Errorf("you need to set up the token first. Run `typush login universe`")
+		return nil, fmt.Errorf("you need to set up the token first. Run `typkg login universe`")
 	}
 	return gh.New(strings.TrimSpace(*cfg.Tokens.Universe)), nil
 }
@@ -114,7 +115,11 @@ func (s submission) prBody() string {
 }
 
 func parseSubmissionTitle(title string) (name, version string, ok bool) {
-	parts := strings.Split(title, ":")
+	t := strings.TrimSpace(title)
+	// Accept "name:version" and "@preview/name:version" (CI-generated titles).
+	t = strings.TrimPrefix(t, "@preview/")
+	t = strings.TrimPrefix(t, "preview/")
+	parts := strings.Split(t, ":")
 	if len(parts) != 2 {
 		return "", "", false
 	}
@@ -129,6 +134,10 @@ func parseSubmissionTitle(title string) (name, version string, ok bool) {
 
 // Publish implements `publish universe` (sparse-checkout only).
 func Publish(packageDir string, dryRun bool) error {
+	// Local Universe review first: same hard errors as official CI.
+	if err := checkpkg.Run(packageDir); err != nil {
+		return fmt.Errorf("local Universe check failed: %w", err)
+	}
 	m, err := manifest.Read(packageDir)
 	if err != nil {
 		return err
@@ -298,7 +307,7 @@ func uploadSparse(client *gh.Client, userLogin, repoName string, sub submission,
 		"[Typship] Initialize package version directory", sub.branch(), typstToml); err != nil {
 		return err
 	}
-	tmp, err := os.MkdirTemp("", "typush-*")
+	tmp, err := os.MkdirTemp("", "typkg-*")
 	if err != nil {
 		return err
 	}
