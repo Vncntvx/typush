@@ -101,6 +101,23 @@ func Init(dir, nameArg string) error {
 		entrypoint = v
 		break
 	}
+	var license string
+	for {
+		v, err := util.PromptLine("Enter the package license (SPDX expression)", "MIT", true)
+		if err != nil {
+			return err
+		}
+		if v == "" {
+			fmt.Fprintln(os.Stderr, "License is required by the Universe")
+			continue
+		}
+		if err := manifest.ValidateLicense(v); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+		license = v
+		break
+	}
 	description, err := util.PromptLine("Enter the package description", "", true)
 	if err != nil {
 		return err
@@ -172,6 +189,7 @@ func Init(dir, nameArg string) error {
 		Package: manifest.PackageInfo{
 			Name: name, Authors: []string{author}, Version: version,
 			Categories: categories, Disciplines: disciplines,
+			License: &license,
 			Description: &description, Keywords: keywords,
 			Entrypoint: entrypoint, Homepage: homepage,
 			Repository: repository, Compiler: compiler,
