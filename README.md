@@ -32,7 +32,7 @@ config directory on first run.
 ```sh
 typkg --help
 typkg init [name]        # interactive: creates typst.toml + entrypoint
-typkg check [--local]    # validate against Universe rules (default) or compiler-minimal rules
+typkg check [--local] [--no-compile]  # see below
 typkg install <ns>       # install to @<ns> (e.g. local)
 typkg download <repo> [-c ref] [-n ns]
 typkg dev [--check]      # symlink into @preview (+ optional Universe conflict check)
@@ -50,6 +50,24 @@ Deprecated aliases (still work): `typkg host` (= `ci plan`), `typkg generate` (=
 the official `bundler` CI (unknown fields, authors format, categories,
 SPDX license, README/LICENSE, template thumbnail, forbidden excludes) are
 caught before anything touches the network.
+
+## Local verification (no CI needed)
+
+If `typst` is on your `PATH` (override with `TYPST_BIN`), `typkg check`
+additionally runs what the official CI would run, all locally and offline:
+
+- **compile**: smoke-imports the library and, for templates, runs the
+  official flow — `typst init @preview/<name>:<version>` into a temp
+  project, then compiles the template entrypoint. Compiler errors fail
+  the check; warnings are reported. Runs in isolated temp `HOME`/XDG
+  dirs, so your real `~/.local/share` / `~/Library` stays untouched.
+  Use `--no-compile` to skip, `--local` for manifest-minimal rules only.
+- **README lint**: missing image alt text (error), dead local links
+  (error), GFM alerts/task lists, default-branch repo URLs (warnings).
+- **files lint**: font files (error), `example`/`test` files and large
+  files not excluded, ignored-but-present files, unlinked manuals.
+- **imports lint**: relative imports of the entrypoint, outdated
+  self-version imports (README included), non-spec template imports.
 
 ## Differences from the Rust original
 

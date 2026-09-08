@@ -1,8 +1,8 @@
 // Package checkpkg validates a package directory.
 //
 // Default mode mirrors the hard errors of the official typst/packages
-// bundler (what CI runs on your submission PR). Use Local for the
-// compiler-minimal rules (name/version/entrypoint present).
+// bundler plus the network-free rules of typst/package-check. Use Local
+// for the compiler-minimal rules (name/version/entrypoint present).
 package checkpkg
 
 import (
@@ -16,6 +16,8 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"golang.org/x/image/webp"
 
+	typcompile "github.com/Vncntvx/typkg/internal/compile"
+	"github.com/Vncntvx/typkg/internal/lint"
 	"github.com/Vncntvx/typkg/internal/manifest"
 	"github.com/Vncntvx/typkg/internal/walker"
 )
@@ -24,23 +26,20 @@ import (
 type Options struct {
 	// Local skips Universe submission rules (license/README/template...).
 	Local bool
+	// NoCompile skips the local Typst compiler checks (import + template).
+	NoCompile bool
 }
 
 // Run validates dir with default (Universe) rules.
 func Run(dir string) error { return RunWith(dir, Options{}) }
 
-// RunWith validates dir.
+// RunWith validates dir. All errors are reported before returning.
 func RunWith(dir string, opt Options) error {
 	m, err := manifest.Read(dir)
 	if err != nil {
 		return err
 	}
-	warns := 0
-	warn := func(f string, a ...any) {
-		warns++
-		fmt.Fprintf(os.Stderr, "WARN: "+f+"\n", a...)
-	}
-
+	c := &collector{}
 	if opt.Local {
 		if _, err := os.Stat(filepath.Join(dir, m.Package.Entrypoint)); err != nil {
 			return fmt.Errorf("entrypoint %q not found: %w", m.Package.Entrypoint, err)
@@ -54,55 +53,162 @@ func RunWith(dir string, opt Options) error {
 		return err
 	}
 	for _, w := range m.WarnUniverse() {
-		warn("%s", w)
+		c.warn("%s", w)
 	}
 
-	// Directory name should match manifest (packages/preview/<name>/<version>).
-	checkDirName(dir, m, warn)
+	checkDirName(dir, m, c)
+	c.errsFrom(checkRootFileNames(dir))
 
 	// Entrypoint: exists, .typ, valid UTF-8.
 	if err := checkTypstFile(dir, m.Package.Entrypoint, "package entrypoint"); err != nil {
-		return err
+		c.err("%s", err)
 	}
 
-	// README.md is required and must not be excluded.
+	// README.md is required.
 	readme, err := os.ReadFile(filepath.Join(dir, "README.md"))
 	if err != nil {
-		return fmt.Errorf("failed to read README.md: README is required for Universe submissions")
+		c.err("failed to read README.md: README is required for Universe submissions")
+		readme = nil
+	} else {
+		diags, linked := lint.Readme(dir, string(readme))
+		c.lint(diags)
+		c.linked = linked
 	}
 	if excluded(m, "README.md") {
-		return fmt.Errorf("README.md must not be excluded (see \"what to exclude\")")
+		c.warn("README.md should not be excluded (see \"what to exclude\")")
 	}
 
 	// License: LICENSE file or link in README; must not be excluded.
 	if err := checkLicenseFile(dir, string(readme)); err != nil {
-		return err
+		c.err("%s", err)
 	}
 	if excluded(m, "LICENSE") {
-		return fmt.Errorf("LICENSE must not be excluded")
+		c.warn("LICENSE should not be excluded")
 	}
 
 	// Template checks.
 	if m.Template != nil {
-		if err := checkTemplate(dir, m, warn); err != nil {
-			return err
+		if err := checkTemplate(dir, m, c); err != nil {
+			c.err("%s", err)
 		}
 	}
 
-	// Bundle: entrypoint must survive excludes; size warnings.
-	if err := checkBundle(dir, m, warn); err != nil {
-		return err
+	// Bundle + files + imports lints.
+	c.lint(checkBundle(dir, m, c))
+	c.lint(checkFiles(dir, m, c.linked))
+	c.lint(lint.Imports(dir, m, lint.LoadTypSources(dir)))
+
+	// Real compiler checks with the local typst binary.
+	if !opt.NoCompile {
+		c.lintCompile(dir, m)
 	}
 
-	if warns == 0 {
+	return c.result()
+}
+
+// collector accumulates errors and prints warnings immediately.
+type collector struct {
+	errs   []string
+	warns  int
+	linked []string
+}
+
+func (c *collector) err(f string, a ...any) {
+	msg := fmt.Sprintf(f, a...)
+	c.errs = append(c.errs, msg)
+	fmt.Fprintf(os.Stderr, "ERROR: %s\n", msg)
+}
+
+func (c *collector) errsFrom(ds []lint.Diag) {
+	for _, d := range ds {
+		if d.Severity == lint.Error {
+			c.err("%s: %s", d.Code, d.Message)
+		} else {
+			c.warn("%s: %s", d.Code, d.Message)
+		}
+	}
+}
+
+// lint feeds lint diagnostics into the collector.
+func (c *collector) lint(ds []lint.Diag) {
+	c.errsFrom(ds)
+}
+
+func (c *collector) warn(f string, a ...any) {
+	c.warns++
+	fmt.Fprintf(os.Stderr, "WARN: "+f+"\n", a...)
+}
+
+func (c *collector) result() error {
+	if len(c.errs) > 0 {
+		return fmt.Errorf("check failed with %d error(s)", len(c.errs))
+	}
+	if c.warns == 0 {
 		fmt.Fprintln(os.Stderr, "No issues found")
 	} else {
-		fmt.Fprintf(os.Stderr, "No errors found (%d warning(s))\n", warns)
+		fmt.Fprintf(os.Stderr, "No errors found (%d warning(s))\n", c.warns)
 	}
 	return nil
 }
 
-func checkDirName(dir string, m *manifest.Manifest, warn func(string, ...any)) {
+// lintCompile runs the local Typst compiler checks.
+func (c *collector) lintCompile(dir string, m *manifest.Manifest) {
+	bin, ok := typcompile.LookPath()
+	if !ok {
+		c.warn("typst binary not found in PATH, compile checks skipped (TYPST_BIN can override)")
+		return
+	}
+	fmt.Fprintln(os.Stderr, "Compiling with local typst...")
+	res := typcompile.CheckLibrary(bin, dir, m.Package.Name, m.Package.Version)
+	if m.Template != nil {
+		// Inside the initialized project, the template entrypoint is
+		// relative to the template path (init copies path/* to root).
+		r2 := typcompile.CheckTemplate(bin, dir, m.Package.Name, m.Package.Version,
+			m.Template.Entrypoint)
+		res.Errors = append(res.Errors, r2.Errors...)
+		res.Warnings = append(res.Warnings, r2.Warnings...)
+	}
+	for _, e := range res.Errors {
+		c.err("compile/error: %s", e)
+	}
+	for _, w := range res.Warnings {
+		c.warn("compile/warning: %s", w)
+	}
+}
+
+// checkRootFileNames mirrors package-check: LICENCE must be LICENSE,
+// license.*/readme.* stems must be ALL CAPS.
+func checkRootFileNames(dir string) []lint.Diag {
+	var out []lint.Diag
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		stem := name
+		if i := strings.LastIndex(name, "."); i >= 0 {
+			stem = name[:i]
+		}
+		upper := strings.ToUpper(stem)
+		if upper == "LICENCE" {
+			out = append(out, lint.Diag{Severity: lint.Error, Code: "filename/licence",
+				Message: fmt.Sprintf("%s: this file should be named LICENSE.", name)})
+			continue
+		}
+		if (upper == "LICENSE" || upper == "README") && stem != upper {
+			fixed := upper + name[len(stem):]
+			out = append(out, lint.Diag{Severity: lint.Error, Code: "filename/case",
+				Message: fmt.Sprintf("%s: please use ALL CAPS for this file (i.e. %s).", name, fixed)})
+		}
+	}
+	return out
+}
+
+func checkDirName(dir string, m *manifest.Manifest, c *collector) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return
@@ -114,7 +220,7 @@ func checkDirName(dir string, m *manifest.Manifest, warn func(string, ...any)) {
 	}
 	// Only nag when it looks like a packages checkout (parent chain exists).
 	if manifest.ValidateVersion(ver) == nil && manifest.IsIdent(name) {
-		warn("package directory name %q/%q does not match manifest %s/%s (expected packages/preview/<name>/<version>)",
+		c.warn("package directory name %q/%q does not match manifest %s/%s (expected packages/preview/<name>/<version>)",
 			name, ver, m.Package.Name, m.Package.Version)
 	}
 }
@@ -150,17 +256,24 @@ func checkLicenseFile(dir, readme string) error {
 	return fmt.Errorf("package must contain a LICENSE file or link to one in README.md")
 }
 
-func checkTemplate(dir string, m *manifest.Manifest, warn func(string, ...any)) error {
+func checkTemplate(dir string, m *manifest.Manifest, c *collector) error {
 	t := m.Template
 	tplDir := filepath.Join(dir, filepath.FromSlash(t.Path))
 	if st, err := os.Stat(tplDir); err != nil || !st.IsDir() {
 		return fmt.Errorf("template.path %q not found", t.Path)
 	}
-	// Entrypoint is relative to the template path (official bundler).
+	// Entrypoint is relative to the template path (official spec).
 	entry := filepath.Join(tplDir, filepath.FromSlash(t.Entrypoint))
 	rel, _ := filepath.Rel(dir, entry)
 	if err := checkTypstFile(dir, filepath.ToSlash(rel), "template entrypoint"); err != nil {
 		return err
+	}
+	// The template entrypoint should import the package by spec, not relatively.
+	if data, err := os.ReadFile(entry); err == nil {
+		spec := "@preview/" + m.Package.Name + ":"
+		if !strings.Contains(string(data), spec) {
+			c.warn("template entrypoint should import the package via `%s<version>` instead of a relative file import", spec)
+		}
 	}
 	if t.Thumbnail == nil {
 		return fmt.Errorf("template.thumbnail is required for Universe submissions")
@@ -187,7 +300,7 @@ func checkTemplate(dir string, m *manifest.Manifest, warn func(string, ...any)) 
 	// Thumbnail is auto-excluded from the bundle and must not be referenced.
 	base := filepath.Base(*t.Thumbnail)
 	if refsInTypFiles(dir, base) {
-		warn("thumbnail %q must not be referenced anywhere in the package", base)
+		c.warn("thumbnail %q must not be referenced anywhere in the package", base)
 	}
 	return nil
 }
@@ -245,11 +358,12 @@ func refsInTypFiles(dir, name string) bool {
 // by package.exclude.
 func excluded(m *manifest.Manifest, rel string) bool {
 	for _, p := range m.Package.Exclude {
-		if ok, _ := doublestar.Match(p, rel); ok {
+		pat := strings.TrimPrefix(p, "./")
+		if ok, _ := doublestar.Match(pat, rel); ok {
 			return true
 		}
-		if !strings.Contains(p, "/") {
-			if ok, _ := doublestar.Match(p, filepath.Base(rel)); ok {
+		if !strings.Contains(pat, "/") {
+			if ok, _ := doublestar.Match(pat, filepath.Base(rel)); ok {
 				return true
 			}
 		}
@@ -257,21 +371,32 @@ func excluded(m *manifest.Manifest, rel string) bool {
 	return false
 }
 
-func checkBundle(dir string, m *manifest.Manifest, warn func(string, ...any)) error {
+// checkBundle computes the effective bundle (publish list minus excludes
+// minus auto-excluded thumbnail) and validates membership.
+func checkBundle(dir string, m *manifest.Manifest, c *collector) []lint.Diag {
+	var out []lint.Diag
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return err
+		return out
 	}
 	entries, err := walker.ListPublish(abs)
 	if err != nil {
-		return err
+		return out
 	}
 	thumb := ""
 	if m.Template != nil && m.Template.Thumbnail != nil {
 		thumb = filepath.ToSlash(*m.Template.Thumbnail)
+		if excluded(m, thumb) {
+			out = append(out, lint.Diag{Severity: lint.Error, Code: "manifest/template/thumbnail/exclude",
+				Message: "The template thumbnail is automatically excluded; do not list it in `exclude`."})
+		}
 	}
-	var total int64
-	var files int
+	for _, e := range m.Package.Exclude {
+		if strings.HasPrefix(e, "./") {
+			out = append(out, lint.Diag{Severity: lint.Warning, Code: "manifest/package/exclude/leading-dot",
+				Message: fmt.Sprintf("Leading `./` of exclusion %q is trimmed. Use an absolute path starting with `/` to avoid recursive matching.", e)})
+		}
+	}
 	included := map[string]bool{}
 	for _, e := range entries {
 		if e == abs {
@@ -290,24 +415,67 @@ func checkBundle(dir string, m *manifest.Manifest, warn func(string, ...any)) er
 			continue
 		}
 		included[relSlash] = true
-		files++
-		total += st.Size()
-		if st.Size() > 1*1024*1024 {
-			warn("bundle file %q is larger than 1 MiB; consider exclude (see \"what to exclude\")", relSlash)
-		}
 	}
 	ep := filepath.ToSlash(m.Package.Entrypoint)
 	if !included[ep] {
-		return fmt.Errorf("package entrypoint %q is excluded from the bundle", ep)
+		out = append(out, lint.Diag{Severity: lint.Error, Code: "bundle/entrypoint",
+			Message: fmt.Sprintf("package entrypoint %q is excluded from the bundle", ep)})
 	}
 	if !included["typst.toml"] {
-		return fmt.Errorf("typst.toml is excluded from the bundle")
+		out = append(out, lint.Diag{Severity: lint.Error, Code: "bundle/manifest",
+			Message: "typst.toml is excluded from the bundle"})
 	}
-	if files > 500 {
-		warn("bundle contains %d files; keep packages small", files)
+	return out
+}
+
+// checkFiles runs the files lint over the on-disk tree.
+func checkFiles(dir string, m *manifest.Manifest, linked []string) []lint.Diag {
+	all, err := lint.WalkAll(dir)
+	if err != nil {
+		return nil
 	}
-	if total > 5*1024*1024 {
-		warn("bundle is %.1f MiB; keep packages small and exclude docs assets", float64(total)/1048576)
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil
 	}
-	return nil
+	entries, err := walker.ListPublish(abs)
+	if err != nil {
+		return nil
+	}
+	thumb := ""
+	if m.Template != nil && m.Template.Thumbnail != nil {
+		thumb = filepath.ToSlash(*m.Template.Thumbnail)
+	}
+	bundled := map[string]bool{}
+	excl := map[string]bool{}
+	for _, e := range entries {
+		if e == abs {
+			continue
+		}
+		rel, _ := filepath.Rel(abs, e)
+		relSlash := filepath.ToSlash(rel)
+		st, err := os.Stat(e)
+		if err != nil || st.IsDir() {
+			continue
+		}
+		if relSlash == thumb {
+			continue
+		}
+		if excluded(m, relSlash) {
+			excl[relSlash] = true
+			continue
+		}
+		bundled[relSlash] = true
+	}
+	// Excluded files still need size entries for the lint.
+	for _, f := range all {
+		if excluded(m, f.RelSlash) {
+			excl[f.RelSlash] = true
+		}
+	}
+	// The thumbnail is auto-excluded by the bundler: never flag it.
+	if thumb != "" {
+		excl[thumb] = true
+	}
+	return lint.Files(all, bundled, excl, linked)
 }

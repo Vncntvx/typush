@@ -55,16 +55,17 @@ func cwd() string {
 }
 
 func newCheckCmd() *cobra.Command {
-	var local bool
+	var local, noCompile bool
 	c := &cobra.Command{
 		Use:   "check",
 		Short: "Check if the package is valid",
-		Long:  "Check if the package is valid against Universe submission rules (default) or compiler-minimal rules (--local). Must be in the package directory.",
+		Long:  "Check the package against Universe submission rules (bundler + package-check, including local Typst compilation). Must be in the package directory.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkpkg.RunWith(cwd(), checkpkg.Options{Local: local})
+			return checkpkg.RunWith(cwd(), checkpkg.Options{Local: local, NoCompile: noCompile})
 		},
 	}
 	c.Flags().BoolVar(&local, "local", false, "Only check compiler-minimal rules (name/version/entrypoint)")
+	c.Flags().BoolVar(&noCompile, "no-compile", false, "Skip the local Typst compiler checks")
 	return c
 }
 

@@ -95,6 +95,22 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// IsKebabName reports whether s is already in kebab-case
+// (lowercase alphanumeric segments joined by single hyphens).
+// Mirrors package-check's `name != kebab(name)` error.
+func IsKebabName(s string) bool {
+	if s == "" || !IsIdent(s) {
+		return false
+	}
+	if strings.Contains(s, "_") || s != strings.ToLower(s) {
+		return false
+	}
+	if strings.HasPrefix(s, "-") || strings.HasSuffix(s, "-") || strings.Contains(s, "--") {
+		return false
+	}
+	return true
+}
+
 func ValidateVersion(v string) error {
 	if !versionRe.MatchString(strings.TrimSpace(v)) {
 		return fmt.Errorf("invalid package version %q: expected semver x.y.z", v)
@@ -162,11 +178,9 @@ func ValidateCompiler(c string) error {
 	if c == "" {
 		return nil
 	}
-	// Accept "1.2.3", "^1.2", ">=0.11", "<=x", "~x" style loosely:
-	// strip leading constraint operators then check semver-ish prefix.
-	t := strings.TrimLeft(c, " \t^~<>=!")
-	if !regexp.MustCompile(`^\d+(\.\d+)?(\.\d+)?`).MatchString(t) {
-		return fmt.Errorf("invalid compiler version bound %q", c)
+	// Upstream requires a full MAJOR.MINOR.PATCH version.
+	if !versionRe.MatchString(c) {
+		return fmt.Errorf("compiler version should be a valid semantic version, with three components (for example `0.12.0`), got %q", c)
 	}
 	return nil
 }
@@ -241,6 +255,9 @@ func (m *Manifest) ValidateUniverse() error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
+	if !IsKebabName(m.Package.Name) {
+		return fmt.Errorf("please use kebab-case for package names (got %q)", m.Package.Name)
+	}
 	for _, a := range m.Package.Authors {
 		if err := ValidateAuthor(a); err != nil {
 			return fmt.Errorf("error while checking author name: %w", err)
@@ -268,6 +285,10 @@ func (m *Manifest) ValidateUniverse() error {
 	if err := ValidateLicense(*m.Package.License); err != nil {
 		return err
 	}
+	if m.Package.Homepage != nil && m.Package.Repository != nil &&
+		*m.Package.Homepage == *m.Package.Repository {
+		return fmt.Errorf("use the homepage field only if there is a dedicated website; otherwise, prefer the `repository` field")
+	}
 	if m.Template != nil && len(m.Package.Categories) == 0 {
 		return fmt.Errorf("template packages must have at least one category")
 	}
@@ -286,9 +307,6 @@ func (m *Manifest) WarnUniverse() []string {
 	if strings.Contains(strings.ToLower(m.Package.Name), "typst") {
 		out = append(out, "package name should not include the word \"typst\" (redundant)")
 	}
-	if m.Package.Name != strings.ToLower(m.Package.Name) {
-		out = append(out, "package name should use kebab-case")
-	}
 	if d := m.Package.Description; d != nil {
 		n := len([]rune(*d))
 		if n < 10 {
@@ -303,6 +321,8 @@ func (m *Manifest) WarnUniverse() []string {
 	}
 	if m.Package.Homepage != nil && m.Package.Repository != nil &&
 		*m.Package.Homepage == *m.Package.Repository {
+		// Hard error in ValidateUniverse; keep a warning here too for
+		// direct WarnUniverse users.
 		out = append(out, "homepage duplicates repository; omit homepage and prefer repository")
 	}
 	return out
