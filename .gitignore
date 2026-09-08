@@ -1,4 +1,5 @@
-/typkg
+/typush
+*.exe
 /dist/
 # e2e scratch
 .e2e/
