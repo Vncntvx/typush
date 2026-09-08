@@ -1,0 +1,49 @@
+# GoReleaser config for typush-go. Replaces cargo-dist (dist-workspace.toml).
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: typush
+    main: ./cmd/typush
+    binary: typush
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    formats: [tar.gz, zip]
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  use: github
+
+brews:
+  - id: typush
+    repository:
+      owner: Vncntvx
+      name: homebrew-typush
+    homepage: https://github.com/Vncntvx/typush-go
+    description: A simple package manager for Typst
+    license: MIT
+
+nfpms: []
+snapcrafts: []
+scoops: []

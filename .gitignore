@@ -1,0 +1,13 @@
+/typush
+/dist/
+# e2e scratch
+.e2e/
+
+# Go
+*.test
+*.out
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
