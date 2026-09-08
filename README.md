@@ -15,17 +15,9 @@ Or download a release binary from GitHub Releases (Homebrew tap on the way).
 
 ## Notice
 
-To use `publish universe`, generate a fine-grained token with the following
-permissions to your fork of the packages repository:
-
-- _Read_ access to _metadata_
-- _Read and write_ access to _contents_
-- _Read and write_ access to _workflow_
-
-GitHub docs: <https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token>
-
-Existing `typush`/`typkg` users: your token is migrated automatically from the old
-config directory on first run.
+`publish universe` (and `dev --check`) work through the [GitHub CLI](https://cli.github.com):
+install `gh` and run `gh auth login` once — no token juggling inside typush.
+`typush login universe` just verifies that setup for you.
 
 ## Usage
 
@@ -79,7 +71,7 @@ additionally runs what the official CI would run, all locally and offline:
 - `dev` skips the Universe network check by default; pass `--check` to enable.
 - `host`/`generate` merged under `ci` (old names kept as hidden aliases).
 - Interactive prompts read piped stdin too, so `printf ... | typush init` works in scripts.
-- Renamed from `typush` to `typush`; old config (token) migrates automatically.
+- Renamed from `typush` to `typush`; GitHub access now goes through `gh` (stored tokens are no longer used).
 
 ## Development
 

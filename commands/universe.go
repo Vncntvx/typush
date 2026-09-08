@@ -12,59 +12,55 @@ import (
 	"github.com/Vncntvx/typush/util"
 )
 
-func publicClient() *Client { return New("") }
+const (
+	UniverseOwner = "typst"
+	UniverseRepo  = "packages"
+)
 
-func authedClient() (*Client, error) {
-	cfg, err := util.Load()
-	if err != nil {
-		return nil, err
-	}
-	if cfg.Tokens.Universe == nil || strings.TrimSpace(*cfg.Tokens.Universe) == "" {
-		return nil, fmt.Errorf("you need to set up the token first. Run `typush login universe`")
-	}
-	return New(strings.TrimSpace(*cfg.Tokens.Universe)), nil
-}
-
-// Login stores a GitHub fine-grained PAT in config.toml.
+// Login verifies GitHub authentication via the gh CLI, offering to run
+// `gh auth login` when needed. typush performs all Universe registry
+// operations through gh, so no token is stored locally anymore.
 func Login() error {
-	cfg, err := util.Load()
-	if err != nil {
-		return err
+	if _, err := exec.LookPath("gh"); err != nil {
+		return fmt.Errorf("the `gh` CLI is required but not found in PATH. Install it from https://cli.github.com")
 	}
-	if cfg.Tokens.Universe != nil {
-		fmt.Fprintln(os.Stderr, "Already logged in to the Universe registry")
-		if !util.Confirm("Do you want to overwrite the existing token?", false) {
-			return nil
+	if err := exec.Command("gh", "auth", "status").Run(); err == nil {
+		login, err := ghCurrentUser()
+		if err != nil {
+			return err
 		}
+		fmt.Fprintf(os.Stderr, "Already logged in to GitHub as %s (via gh)\n", login)
+		return nil
 	}
-	fmt.Fprintln(os.Stderr, "Please create a fine-grained token from https://github.com/settings/personal-access-tokens/new.")
-	fmt.Fprintln(os.Stderr, `Grant Contents, Workflows and Pull requests permission on your typst/packages fork.`)
-	token, err := util.PromptPassword("Enter your GitHub personal access token")
-	if err != nil {
-		return err
+	fmt.Fprintln(os.Stderr, "typush uses the GitHub CLI (gh) for all Universe registry operations.")
+	if util.Confirm("Run `gh auth login` now?", true) {
+		cmd := exec.Command("gh", "auth", "login")
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+		login, err := ghCurrentUser()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "Logged in to GitHub as %s (via gh)\n", login)
+		return nil
 	}
-	if strings.TrimSpace(token) == "" {
-		return fmt.Errorf("token must not be empty")
-	}
-	cfg.Tokens.Universe = &token
-	if err := util.Save(cfg); err != nil {
-		return err
-	}
-	path, _ := util.ConfigFile()
-	fmt.Fprintf(os.Stderr, "Your token has been saved to %s\n", path)
-	return nil
+	return fmt.Errorf("not logged in to GitHub; run `gh auth login` then retry")
 }
 
 // WarnIfExists warns when name/version already exist upstream (used by dev --check).
 func WarnIfExists(name, version string) error {
-	c := publicClient()
-	pkgs, err := c.GetContents(UniverseOwner, UniverseRepo, "packages/preview", "main")
+	if err := requireGhPresence(); err != nil {
+		return err
+	}
+	pkgs, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview", "main")
 	if err != nil {
 		return err
 	}
 	found := false
 	for _, p := range pkgs {
-		if p.Name == name {
+		if p == name {
 			found = true
 		}
 	}
@@ -72,12 +68,12 @@ func WarnIfExists(name, version string) error {
 		fmt.Fprintf(os.Stderr, "WARN: package `%s` is not available in the Universe (yet)\n", name)
 		return nil
 	}
-	vers, err := c.GetContents(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main")
+	vers, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main")
 	if err != nil {
 		return err
 	}
 	for _, v := range vers {
-		if v.Name == version {
+		if v == version {
 			fmt.Fprintf(os.Stderr, "WARN: version `%s` is already available in the Universe\n", version)
 			return nil
 		}
@@ -140,28 +136,27 @@ func Publish(packageDir string, dryRun bool) error {
 		return err
 	}
 	name, version := m.Package.Name, m.Package.Version
-	pub := publicClient()
 
 	fmt.Fprintln(os.Stderr, "Checking the packages in the official packages repo...")
 	isNew := true
-	pkgs, err := pub.GetContents(UniverseOwner, UniverseRepo, "packages/preview", "main")
+	pkgs, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview", "main")
 	if err != nil {
 		return err
 	}
 	for _, p := range pkgs {
-		if p.Name != name {
+		if p != name {
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "Package `%s` found in official packages repo\n", p.Name)
+		fmt.Fprintf(os.Stderr, "Package `%s` found in official packages repo\n", p)
 		isNew = false
-		vers, err := pub.GetContents(UniverseOwner, UniverseRepo, "packages/preview/"+p.Name, "main")
+		vers, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+p, "main")
 		if err != nil {
 			return err
 		}
 		var names []string
 		for _, v := range vers {
-			names = append(names, v.Name)
-			if v.Name == version {
+			names = append(names, v)
+			if v == version {
 				return fmt.Errorf("package version `%s` already exists in the official packages repo", version)
 			}
 		}
@@ -169,15 +164,15 @@ func Publish(packageDir string, dryRun bool) error {
 	}
 
 	fmt.Fprintln(os.Stderr, "Checking the pending PRs...")
-	prs, err := pub.ListOpenPulls()
+	prs, err := ghOpenPulls()
 	if err != nil {
 		return err
 	}
 	for _, pr := range prs {
-		if pr.Title == nil {
+		if pr.Title == "" {
 			continue
 		}
-		n, v, ok := parseSubmissionTitle(*pr.Title)
+		n, v, ok := parseSubmissionTitle(pr.Title)
 		if !ok || n != name {
 			continue
 		}
@@ -200,11 +195,10 @@ func Publish(packageDir string, dryRun bool) error {
 	}
 	sub := submission{name: name, version: version, isNewPackage: isNew, description: desc, hasTemplate: m.Template != nil}
 
-	client, err := authedClient()
-	if err != nil {
+	if err := requireGhAuth(); err != nil {
 		return err
 	}
-	me, err := client.CurrentUser()
+	me, err := ghCurrentUser()
 	if err != nil {
 		return err
 	}
@@ -212,24 +206,21 @@ func Publish(packageDir string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
-	fork, err := client.GetRepo(me.Login, myRepo)
+	parent, err := ghForkParentFull(me, myRepo)
 	if err != nil {
 		return err
 	}
-	if fork.Parent == nil {
-		return fmt.Errorf("the given repository is not a fork")
-	}
-	if fork.Parent.Name != UniverseRepo || fork.Parent.Owner == nil || fork.Parent.Owner.Login != UniverseOwner {
+	if parent != UniverseOwner+"/"+UniverseRepo {
 		return fmt.Errorf("the given repository is not a fork of the official packages repo")
 	}
 
 	fmt.Fprintln(os.Stderr, "Creating corresponding branch in your fork...")
 	if !dryRun {
-		mainSHA, err := client.GetBranchHead(UniverseOwner, UniverseRepo, "main")
+		mainSHA, err := ghBranchHead(UniverseOwner, UniverseRepo, "main")
 		if err != nil {
 			return err
 		}
-		exists, err := client.BranchExists(me.Login, myRepo, sub.branch())
+		exists, err := ghBranchExists(me, myRepo, sub.branch())
 		if err != nil {
 			return err
 		}
@@ -237,11 +228,11 @@ func Publish(packageDir string, dryRun bool) error {
 			if !util.Confirm(fmt.Sprintf("Branch `%s` already exists in your fork. Do you want to overwrite it?", sub.branch()), false) {
 				return fmt.Errorf("aborted")
 			}
-			if err := client.DeleteBranch(me.Login, myRepo, sub.branch()); err != nil {
+			if err := ghDeleteBranch(me, myRepo, sub.branch()); err != nil {
 				return err
 			}
 		}
-		if err := client.CreateBranch(me.Login, myRepo, sub.branch(), mainSHA); err != nil {
+		if err := ghCreateBranch(me, myRepo, sub.branch(), mainSHA); err != nil {
 			return err
 		}
 		fmt.Fprintf(os.Stderr, "Branch `%s` created\n", sub.branch())
@@ -275,7 +266,7 @@ func Publish(packageDir string, dryRun bool) error {
 		if !util.GitSupportsSparseCheckout() {
 			return fmt.Errorf("git >= 2.25 is required for sparse-checkout upload; please upgrade git")
 		}
-		if err := uploadSparse(client, me.Login, myRepo, sub, absPkg, files); err != nil {
+		if err := uploadSparse(me, myRepo, sub, absPkg, files); err != nil {
 			return err
 		}
 	} else {
@@ -284,24 +275,24 @@ func Publish(packageDir string, dryRun bool) error {
 
 	fmt.Fprintln(os.Stderr, "Generating submission PR...")
 	if !dryRun {
-		pr, err := client.CreatePull(sub.title(), me.Login+":"+sub.branch(), "main", sub.prBody(), true)
+		url, err := ghCreateDraftPR(me+":"+sub.branch(), "main", sub.title(), sub.prBody())
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "PR created: %s\n", pr.HTMLURL)
+		fmt.Fprintf(os.Stderr, "PR created: %s\n", url)
 	} else {
 		fmt.Fprintln(os.Stderr, "Dry run: PR creation skipped")
 	}
 	return nil
 }
 
-func uploadSparse(client *Client, userLogin, repoName string, sub submission, packageDir string, files []string) error {
+func uploadSparse(userLogin, repoName string, sub submission, packageDir string, files []string) error {
 	typstToml, err := os.ReadFile(filepath.Join(packageDir, "typst.toml"))
 	if err != nil {
 		return err
 	}
-	if err := client.CreateFile(userLogin, repoName, sub.repoPath()+"/typst.toml",
-		"[Typship] Initialize package version directory", sub.branch(), typstToml); err != nil {
+	if err := ghCreateFile(userLogin, repoName, sub.repoPath()+"/typst.toml",
+		"[typush] Initialize package version directory", sub.branch(), typstToml); err != nil {
 		return err
 	}
 	tmp, err := os.MkdirTemp("", "typush-*")
@@ -356,7 +347,7 @@ func uploadSparse(client *Client, userLogin, repoName string, sub submission, pa
 		return err
 	}
 	// commit may report nothing to commit; tolerate it
-	cmd := exec.Command("git", "commit", "-m", fmt.Sprintf("[Typship] Add package %s:%s", sub.name, sub.version))
+	cmd := exec.Command("git", "commit", "-m", fmt.Sprintf("[typush] Add package %s:%s", sub.name, sub.version))
 	cmd.Dir = repoPath
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if !strings.Contains(string(out), "nothing to commit") {

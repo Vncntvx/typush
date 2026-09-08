@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"golang.org/x/term"
 )
 
 // stdinReader is shared across prompts: creating a new bufio.Reader per
@@ -65,20 +63,6 @@ func PromptLine(prompt, def string, allowEmpty bool) (string, error) {
 		}
 	}
 	return line, nil
-}
-
-// PromptPassword reads a secret without echo.
-func PromptPassword(prompt string) (string, error) {
-	fmt.Fprintf(os.Stderr, "%s: ", prompt)
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return "", fmt.Errorf("aborted: non-interactive stdin")
-	}
-	b, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Fprintln(os.Stderr)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), nil
 }
 
 // MultiSelect presents a numbered checklist; input like "1,3-5" or empty.

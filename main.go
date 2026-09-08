@@ -158,7 +158,7 @@ func newLoginCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "login <registry>",
 		Short: "Login to the certain registry",
-		Long:  "Login to the certain registry. Currently, only the official Universe (GitHub) registry is supported.",
+		Long:  "Verify GitHub authentication for the Universe registry via the gh CLI (offers to run `gh auth login` when needed).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if args[0] != "universe" {
@@ -174,7 +174,7 @@ func newPublishCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "publish <registry>",
 		Short: "Publish the package to a certain registry",
-		Long:  "Publish the package to a certain registry. Currently, only the official Universe (GitHub) registry is supported.",
+		Long:  "Publish the package to the official Universe (GitHub) registry via the gh CLI (requires `gh auth login`).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if args[0] != "universe" {
