@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Vncntvx/typkg/manifest"
+	"github.com/Vncntvx/typush/manifest"
 )
 
 func writeTOML(t *testing.T, body string) string {
@@ -69,7 +69,7 @@ version = "0.1.0"
 entrypoint = "src/lib.typ"
 authors = ["me"]
 
-[tool.typkg]
+[tool.typush]
 hello = "world"
 `)
 	m, err := manifest.Read(dir)

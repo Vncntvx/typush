@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Vncntvx/typkg/checker"
-	"github.com/Vncntvx/typkg/manifest"
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/checker"
+	"github.com/Vncntvx/typush/manifest"
+	"github.com/Vncntvx/typush/util"
 )
 
 func publicClient() *Client { return New("") }
@@ -20,7 +20,7 @@ func authedClient() (*Client, error) {
 		return nil, err
 	}
 	if cfg.Tokens.Universe == nil || strings.TrimSpace(*cfg.Tokens.Universe) == "" {
-		return nil, fmt.Errorf("you need to set up the token first. Run `typkg login universe`")
+		return nil, fmt.Errorf("you need to set up the token first. Run `typush login universe`")
 	}
 	return New(strings.TrimSpace(*cfg.Tokens.Universe)), nil
 }
@@ -304,7 +304,7 @@ func uploadSparse(client *Client, userLogin, repoName string, sub submission, pa
 		"[Typship] Initialize package version directory", sub.branch(), typstToml); err != nil {
 		return err
 	}
-	tmp, err := os.MkdirTemp("", "typkg-*")
+	tmp, err := os.MkdirTemp("", "typush-*")
 	if err != nil {
 		return err
 	}

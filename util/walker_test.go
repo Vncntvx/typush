@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/util"
 )
 
 func testRoot() string {

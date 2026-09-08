@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Vncntvx/typkg/manifest"
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/manifest"
+	"github.com/Vncntvx/typush/util"
 )
 
 // Dev creates a preview symlink for local development.

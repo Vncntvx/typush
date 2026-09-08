@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Vncntvx/typkg/manifest"
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/manifest"
+	"github.com/Vncntvx/typush/util"
 )
 
 // Run installs the package at srcDir into namespace target (without @ prefix handling).

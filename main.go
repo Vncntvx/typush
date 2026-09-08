@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Vncntvx/typkg/checker"
-	"github.com/Vncntvx/typkg/commands"
+	"github.com/Vncntvx/typush/checker"
+	"github.com/Vncntvx/typush/commands"
 )
 
 var version = "dev"
@@ -24,7 +24,7 @@ func main() {
 
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "typkg",
+		Use:   "typush",
 		Short: "A simple package manager for Typst",
 		Long:  "A simple package manager for Typst",
 	}
@@ -220,7 +220,7 @@ func newCICmd() *cobra.Command {
 	return c
 }
 
-// Back-compat: `typkg host` == `typkg ci plan`
+// Back-compat: `typush host` == `typush ci plan`
 func newHostAliasCmd() *cobra.Command {
 	var packages string
 	c := &cobra.Command{
@@ -244,7 +244,7 @@ func newHostAliasCmd() *cobra.Command {
 	return c
 }
 
-// Back-compat: `typkg generate` == `typkg ci generate`
+// Back-compat: `typush generate` == `typush ci generate`
 func newGenerateAliasCmd() *cobra.Command {
 	var source, pushToFork, destination string
 	c := &cobra.Command{

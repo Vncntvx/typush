@@ -10,11 +10,11 @@ import (
 )
 
 // AppName is the binary/config name.
-const AppName = "typkg"
+const AppName = "typush"
 
-// legacyAppName is the previous project name. Load falls back to its
-// config file once (token migration) so existing users keep their login.
-const legacyAppName = "typush"
+// legacyAppNames are previous project names, newest first. Load falls back
+// to their config files once (token migration) so existing users keep login.
+var legacyAppNames = []string{"typkg", "typush"}
 
 const defaultPackagesSubdir = "typst/packages" // from typst-kit
 
@@ -90,17 +90,24 @@ func Save(cfg *Config) error {
 	return nil
 }
 
-// migrateLegacy copies the legacy "typush" config forward once.
+// migrateLegacy copies the first found legacy config forward once.
 // Reports whether a migration happened.
 func migrateLegacy(newPath string) (bool, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return false, err
 	}
-	legacy := filepath.Join(base, legacyAppName, "config.toml")
-	data, err := os.ReadFile(legacy)
-	if err != nil {
-		return false, err
+	var legacy string
+	var data []byte
+	for _, name := range legacyAppNames {
+		p := filepath.Join(base, name, "config.toml")
+		if d, err := os.ReadFile(p); err == nil {
+			legacy, data = p, d
+			break
+		}
+	}
+	if data == nil {
+		return false, fmt.Errorf("no legacy config found")
 	}
 	var cfg Config
 	if err := toml.Unmarshal(data, &cfg); err != nil {

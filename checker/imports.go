@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Vncntvx/typkg/manifest"
+	"github.com/Vncntvx/typush/manifest"
 )
 
 var (

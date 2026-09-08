@@ -48,7 +48,7 @@ func isolatedEnv(pkgDir, name, version string) (env []string, cleanup func(), er
 	if err != nil {
 		return nil, nil, err
 	}
-	tmp, err := os.MkdirTemp("", "typkg-check-*")
+	tmp, err := os.MkdirTemp("", "typush-check-*")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -134,7 +134,7 @@ func CheckLibrary(bin, pkgDir, name, version string) Result {
 	}
 	defer cleanup()
 
-	work, err := os.MkdirTemp("", "typkg-smoke-*")
+	work, err := os.MkdirTemp("", "typush-smoke-*")
 	if err != nil {
 		r.addErr("compile setup failed: %v", err)
 		return r
@@ -167,7 +167,7 @@ func CheckTemplate(bin, pkgDir, name, version, tplEntry string) Result {
 	}
 	defer cleanup()
 
-	work, err := os.MkdirTemp("", "typkg-tpl-*")
+	work, err := os.MkdirTemp("", "typush-tpl-*")
 	if err != nil {
 		r.addErr("compile setup failed: %v", err)
 		return r

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	checker "github.com/Vncntvx/typkg/checker"
+	checker "github.com/Vncntvx/typush/checker"
 )
 
 func TestLookPath(t *testing.T) {

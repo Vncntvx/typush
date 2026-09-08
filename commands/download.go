@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/util"
 )
 
 // Run clones repo (+ optional checkout ref) into a temp dir then installs.

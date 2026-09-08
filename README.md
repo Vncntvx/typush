@@ -1,14 +1,14 @@
-# typkg
+# typush
 
-The Typst package helper: develop locally, validate against Universe rules,
-and publish to [Typst packages](https://github.com/typst/packages).
+Push your Typst package to the Universe: develop locally, validate against
+Universe rules, and publish to [Typst packages](https://github.com/typst/packages).
 
 Go rewrite of [typush](https://github.com/Vncntvx/typush) — no Rust toolchain needed.
 
 ## Installation
 
 ```sh
-go install github.com/Vncntvx/typkg@latest
+go install github.com/Vncntvx/typush@latest
 ```
 
 Or download a release binary from GitHub Releases (Homebrew tap on the way).
@@ -24,27 +24,27 @@ permissions to your fork of the packages repository:
 
 GitHub docs: <https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token>
 
-Existing `typush` users: your token is migrated automatically from the old
+Existing `typush`/`typkg` users: your token is migrated automatically from the old
 config directory on first run.
 
 ## Usage
 
 ```sh
-typkg --help
-typkg init [name]        # interactive: creates typst.toml + entrypoint
-typkg check [--local] [--no-compile]  # see below
-typkg install <ns>       # install to @<ns> (e.g. local)
-typkg download <repo> [-c ref] [-n ns]
-typkg dev [--check]      # symlink into @preview (+ optional Universe conflict check)
-typkg clean [package]
-typkg exclude <globs...>
-typkg login universe
-typkg publish universe [--dry-run]   # local Universe check + sparse-checkout upload + draft PR
-typkg ci plan [--packages "a b"]     # workspace scan -> CI matrix JSON
-typkg ci generate [--source ...] [--push-to-fork ...] [--destination ...]
+typush --help
+typush init [name]        # interactive: creates typst.toml + entrypoint
+typush check [--local] [--no-compile]  # see below
+typush install <ns>       # install to @<ns> (e.g. local)
+typush download <repo> [-c ref] [-n ns]
+typush dev [--check]      # symlink into @preview (+ optional Universe conflict check)
+typush clean [package]
+typush exclude <globs...>
+typush login universe
+typush publish universe [--dry-run]   # local Universe check + sparse-checkout upload + draft PR
+typush ci plan [--packages "a b"]     # workspace scan -> CI matrix JSON
+typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
 ```
 
-Deprecated aliases (still work): `typkg host` (= `ci plan`), `typkg generate` (= `ci generate`).
+Deprecated aliases (still work): `typush host` (= `ci plan`), `typush generate` (= `ci generate`).
 
 `publish` always runs the local Universe check first, so most rejections from
 the official `bundler` CI (unknown fields, authors format, categories,
@@ -53,7 +53,7 @@ caught before anything touches the network.
 
 ## Local verification (no CI needed)
 
-If `typst` is on your `PATH` (override with `TYPST_BIN`), `typkg check`
+If `typst` is on your `PATH` (override with `TYPST_BIN`), `typush check`
 additionally runs what the official CI would run, all locally and offline:
 
 - **compile**: smoke-imports the library and, for templates, runs the
@@ -78,8 +78,8 @@ additionally runs what the official CI would run, all locally and offline:
 - `check` mirrors the official `bundler` hard errors instead of being a stub.
 - `dev` skips the Universe network check by default; pass `--check` to enable.
 - `host`/`generate` merged under `ci` (old names kept as hidden aliases).
-- Interactive prompts read piped stdin too, so `printf ... | typkg init` works in scripts.
-- Renamed from `typush` to `typkg`; old config (token) migrates automatically.
+- Interactive prompts read piped stdin too, so `printf ... | typush init` works in scripts.
+- Renamed from `typush` to `typush`; old config (token) migrates automatically.
 
 ## Development
 

@@ -55,7 +55,7 @@ func (c *Client) do(method, path string, query map[string]string, body any, out 
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Set("User-Agent", "typkg")
+	req.Header.Set("User-Agent", "typush")
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}

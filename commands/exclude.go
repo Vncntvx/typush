@@ -3,8 +3,8 @@ package commands
 import (
 	"fmt"
 
-	"github.com/Vncntvx/typkg/manifest"
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/manifest"
+	"github.com/Vncntvx/typush/util"
 )
 
 // Add appends files to package.exclude (dedup) after validating globs.

@@ -1,4 +1,4 @@
-module github.com/Vncntvx/typkg
+module github.com/Vncntvx/typush
 
 go 1.27.1
 

@@ -1,4 +1,4 @@
-# GoReleaser config for typkg. Replaces cargo-dist (dist-workspace.toml).
+# GoReleaser config for typush. Replaces cargo-dist (dist-workspace.toml).
 version: 2
 
 before:
@@ -7,9 +7,9 @@ before:
     - go vet ./...
 
 builds:
-  - id: typkg
+  - id: typush
     main: .
-    binary: typkg
+    binary: typush
     ldflags:
       - -s -w -X main.version={{.Version}}
     goos: [linux, darwin, windows]
@@ -36,11 +36,11 @@ changelog:
   use: github
 
 brews:
-  - id: typkg
+  - id: typush
     repository:
       owner: Vncntvx
-      name: homebrew-typkg
-    homepage: https://github.com/Vncntvx/typkg
+      name: homebrew-typush
+    homepage: https://github.com/Vncntvx/typush
     description: A simple package manager for Typst
     license: MIT
 

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Vncntvx/typkg/checker"
+	"github.com/Vncntvx/typush/checker"
 
-	"github.com/Vncntvx/typkg/manifest"
+	"github.com/Vncntvx/typush/manifest"
 )
 
 func testManifest() *manifest.Manifest {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/util"
 )
 
 func TestLegacyMigration(t *testing.T) {
@@ -14,8 +14,8 @@ func TestLegacyMigration(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "") // ensure OS-default path is used
 	t.Setenv("XDG_DATA_HOME", "")
 
-	// Legacy typush config with a token.
-	legacyDir := filepath.Join(home, "Library", "Application Support", "typush")
+	// Legacy typkg config with a token.
+	legacyDir := filepath.Join(home, "Library", "Application Support", "typkg")
 	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

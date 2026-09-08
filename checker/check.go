@@ -16,8 +16,8 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"golang.org/x/image/webp"
 
-	"github.com/Vncntvx/typkg/manifest"
-	"github.com/Vncntvx/typkg/util"
+	"github.com/Vncntvx/typush/manifest"
+	"github.com/Vncntvx/typush/util"
 )
 
 // Options tunes strictness.
