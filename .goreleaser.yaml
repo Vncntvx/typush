@@ -8,7 +8,7 @@ before:
 
 builds:
   - id: typkg
-    main: ./cmd/typkg
+    main: .
     binary: typkg
     ldflags:
       - -s -w -X main.version={{.Version}}

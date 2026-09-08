@@ -8,7 +8,7 @@ Go rewrite of [typush](https://github.com/Vncntvx/typush) — no Rust toolchain 
 ## Installation
 
 ```sh
-go install github.com/Vncntvx/typkg/cmd/typkg@latest
+go install github.com/Vncntvx/typkg@latest
 ```
 
 Or download a release binary from GitHub Releases (Homebrew tap on the way).
