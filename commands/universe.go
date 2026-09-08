@@ -93,18 +93,49 @@ func (s submission) title() string    { return s.name + ":" + s.version }
 func (s submission) branch() string   { return s.name + "-" + s.version }
 func (s submission) repoPath() string { return "packages/preview/" + s.name + "/" + s.version }
 func (s submission) prBody() string {
-	tpl := ""
-	if s.hasTemplate {
-		tpl = "\n- [x] ensured that my package is licensed such that users can use and distribute the contents of its template directory without restriction, after modifying them through normal use.\n"
-	}
-	newBox, updBox := " ", " "
+	var b strings.Builder
+	b.WriteString("<!--\n" +
+		"Thanks for submitting a package! Please read and follow the submission guidelines detailed in the repository's README and check the boxes below. Please name your PR as `name:version` of the submitted package.\n" +
+		"\n" +
+		"If you want to make a PR for something other than a package submission, just delete all this and make a plain PR.\n" +
+		"-->\n" +
+		"\n" +
+		"I am submitting\n")
 	if s.isNewPackage {
-		newBox = "x"
+		b.WriteString("- [x] a new package\n- [ ] an update for a package\n")
 	} else {
-		updBox = "x"
+		b.WriteString("- [ ] a new package\n- [x] an update for a package\n")
 	}
-	return fmt.Sprintf("I am submitting\n- [%s] a new package\n- [%s] an update for a package\n\nDescription: %s\n\nI have read and followed the submission guidelines and, in particular, I\n- [x] selected a name that isn't the most obvious or canonical name for what the package does\n- [x] added a `typst.toml` file with all required keys\n- [x] added a `README.md` with documentation for my package\n- [x] have chosen a license and added a `LICENSE` file or linked one in my `README.md`\n- [x] tested my package locally on my system and it worked\n- [x] `exclude`d PDFs or README images, if any, but not the LICENSE\n%s",
-		newBox, updBox, s.description, tpl)
+	b.WriteString("\n" +
+		"<!--\n" +
+		"Please add a brief description of your package below and explain why you think it is useful to others. If this is an update, please briefly say what changed.\n" +
+		"-->\n" +
+		"\n" +
+		"Description: " + s.description + "\n")
+	if !s.isNewPackage {
+		// Updates skip the checklist: it was already reviewed on first submission.
+		return b.String()
+	}
+	b.WriteString("\n" +
+		"<!--\n" +
+		"These things need to be checked for a new submission to be merged. If you're just submitting an update, you can delete the following section.\n" +
+		"-->\n" +
+		"\n" +
+		"I have read and followed the submission guidelines and, in particular, I\n" +
+		"- [x] selected [a name](https://github.com/typst/packages/blob/main/docs/manifest.md#naming-rules) that isn't the most obvious or canonical name for what the package does\n" +
+		"- [x] added a [`typst.toml`](https://github.com/typst/packages/blob/main/docs/manifest.md#package-metadata) file with all required keys\n" +
+		"- [x] added a [`README.md`](https://github.com/typst/packages/blob/main/docs/documentation.md) with documentation for my package\n" +
+		"- [x] have chosen [a license](https://github.com/typst/packages/blob/main/docs/licensing.md) and added a `LICENSE` file or linked one in my `README.md`\n" +
+		"- [x] tested my package locally on my system and it worked\n" +
+		"- [x] [`exclude`d](https://github.com/typst/packages/blob/main/docs/tips.md#what-to-commit-what-to-exclude) PDFs or README images, if any, but not the LICENSE\n")
+	if s.hasTemplate {
+		b.WriteString("\n" +
+			"<!--\n" +
+			"The following box only needs to be checked for **template** submissions. If you're submitting a package that isn't a template, you can delete the following section. See the guidelines section about licenses in the README for more details.\n" +
+			"-->\n" +
+			"- [x] ensured that my package is licensed such that users can use and distribute the contents of its template directory without restriction, after modifying them through normal use.\n")
+	}
+	return b.String()
 }
 
 func parseSubmissionTitle(title string) (name, version string, ok bool) {
