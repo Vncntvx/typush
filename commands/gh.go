@@ -62,11 +62,15 @@ func ghAPI(args ...string) ([]byte, error) {
 }
 
 // ghDirNames lists entry names of a directory in a repo at a ref.
-// Note: the ref goes into the endpoint path, not -f: gh turns -f into a
-// body/query form that the contents API answers 404 to.
+// It uses the Git Trees API: the Contents API caps directory listings at 1000
+// entries, and `packages/preview` holds more than that. Without the Trees API,
+// entries sorting after the cap are invisible and updates look like new
+// packages.
+// Note: the ref and path go into the endpoint path, not -f: gh turns -f into
+// a body/query form that the API answers 404 to.
 func ghDirNames(owner, repo, dir, ref string) ([]string, error) {
-	out, err := ghAPI(fmt.Sprintf("repos/%s/%s/contents/%s?ref=%s", owner, repo, strings.TrimPrefix(dir, "/"), ref),
-		"--jq", ".[].name")
+	out, err := ghAPI(fmt.Sprintf("repos/%s/%s/git/trees/%s:%s", owner, repo, ref, strings.TrimPrefix(dir, "/")),
+		"--jq", `.tree[] | select(.type == "tree") | .path`)
 	if err != nil {
 		return nil, err
 	}
