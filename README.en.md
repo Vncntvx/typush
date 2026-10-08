@@ -6,9 +6,9 @@ English | [简体中文](README.md)
 
 </div>
 
-typush is a CLI tool for [Typst](https://typst.app/) package development and publishing: develop, validate, and install packages locally, then publish to the [Typst Universe](https://github.com/typst/packages).
+typush is a CLI tool for developing, validating, and publishing [Typst](https://typst.app/) packages to the [Typst Universe](https://github.com/typst/packages).
 
-The name comes from **Typst** + **push**: it pushes your packages into the [universe](https://typst.app/universe/).
+The name combines Typst and push, referring to publishing packages to [universe](https://typst.app/universe/).
 
 ## Installation
 
@@ -16,27 +16,27 @@ The name comes from **Typst** + **push**: it pushes your packages into the [univ
 go install github.com/Vncntvx/typush@latest
 ```
 
-You can also download a binary for your platform from [Releases](https://github.com/Vncntvx/typush/releases).
+You can also download a prebuilt binary for your platform from [Releases](https://github.com/Vncntvx/typush/releases).
 
 ## Prerequisites
 
-`publish universe` (and `dev --check`) access GitHub through the [GitHub CLI](https://cli.github.com). Install `gh` and run `gh auth login` once. `typush login universe` verifies that setup.
+Commands like `publish universe` and `dev --check` rely on the [GitHub CLI](https://cli.github.com). Install `gh` and run `gh auth login` once; run `typush login universe` to verify your authentication status.
 
 ## Quick start
 
-Initialize a new package (interactive):
+Initialize a new package:
 
 ```sh
 typush init
 ```
 
-While developing a template, symlink the package directory into the `@preview` namespace:
+Link the directory into `@preview` during local development:
 
 ```sh
 typush dev
 ```
 
-Publish to the Universe (runs local checks first):
+Publish to Universe:
 
 ```sh
 typush publish universe
@@ -46,43 +46,33 @@ typush publish universe
 
 ```sh
 typush --help
-typush init [name]        # interactive: creates typst.toml + entrypoint
-typush check [--local] [--no-compile]  # validate the package, see below
-typush install <ns>       # install to @<ns> (e.g. local)
-typush download <repo> [-c ref] [-n ns]
-typush dev [--check]      # symlink into @preview (+ optional Universe conflict check)
-typush clean [package]
-typush exclude <globs...>
-typush login universe
-typush publish universe [--dry-run]   # local Universe check + auto fork detection + sparse-checkout upload + draft PR
-typush pr status [number|url]         # view PR details, reviewer comments and activity
+typush init [name]        # interactively create typst.toml, README.md, LICENSE, and entrypoint
+typush bump [patch|minor|major|<ver>] # update version and sync package references in README
+typush check [--local] [--no-compile]  # run package specifications and compiler checks
+typush install <ns>       # install to a local namespace (such as @local)
+typush download <repo> [-c ref] [-n ns] # clone and install a package from a git repository
+typush dev [--check]      # link into @preview (optional remote conflict check)
+typush dev list           # list active dev links in @preview and target paths
+typush clean [package]    # remove dev symlinks from @preview
+typush exclude <globs...> # add glob patterns to excluded files
+typush login universe     # verify GitHub CLI authentication
+typush publish universe [--dry-run]   # validate and submit a PR to Universe (handles fork and branch)
+typush pr status [number|url]         # view PR details and review comments (matches current package by default)
 typush pr checks [number|url] [-w]    # view or watch official Universe CI check runs
-typush ci plan [--packages "a b"]     # workspace scan -> CI matrix JSON
-typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
+typush ci plan [--packages "a b"]     # scan workspace and output CI matrix JSON
+typush ci generate [...]              # generate GitHub Actions CI release workflow
 ```
 
-`publish` runs the local Universe check first. Common rejection reasons from the official `bundler` CI (unknown fields, authors format, categories, SPDX license, missing README/LICENSE, template thumbnail, forbidden excludes) are caught before anything touches the network.
+`publish` runs Universe checks locally before submitting. It catches missing metadata, invalid SPDX licenses, author formatting issues, forbidden file exclusions, and missing assets before opening a pull request.
 
 ## Local verification
 
-If `typst` is on your `PATH` (override with `TYPST_BIN`), `typush check` also runs what the official CI would run, locally and offline:
+When `typst` is found on your `PATH` (or specified by `TYPST_BIN`), `typush check` runs the official CI verification steps:
 
-- Compile: smoke-imports the library; for templates, runs the official flow, `typst init @preview/<name>:<version>` into a temp project, then compiles the template entrypoint. Compiler errors fail the check; warnings are reported. Checks run in temp `HOME`/XDG dirs and do not touch your local Typst data. Use `--no-compile` to skip, `--local` for manifest-minimal rules only.
-- README: missing image alt text (error), dead local links (error), GFM alerts/task lists, repo URLs pointing at the default branch (warning).
-- Files: font files (error), `example`/`test` files and large files not excluded, ignored-but-present files, unlinked manuals.
-- Imports: relative imports of the entrypoint, outdated self-version imports (README included), non-spec template imports.
-
-## Design decisions
-
-- Written in Go, built as a single static binary, released with GoReleaser.
-- GitHub operations (auth checks, API queries, auto-forking, PR creation, CI monitoring) go through the `gh` CLI; the GitHub API is not called directly.
-- Git network operations automatically bridge credentials via `gh auth git-credential`.
-- `publish` uploads packages using single-commit sparse-checkout, which requires git >= 2.25.
-- `check` covers the official `bundler` hard errors.
-- `dev` skips the Universe network check by default; pass `--check` to enable it.
-- `host` / `generate` are merged under the `ci` subcommand; the old names remain as hidden aliases.
-- Interactive prompts read piped stdin, so `printf ... | typush init` works in scripts.
-- GitHub access goes through the `gh` CLI; locally stored tokens are not read or written.
+- Compile: for libraries, imports the package; for templates, runs `typst init @preview/<name>:<version>` in an isolated temporary directory and compiles the template entrypoint. Checks run in temporary directories without modifying local Typst cache. Use `--no-compile` to skip compilation, or `--local` to check only basic manifest rules.
+- README: checks for missing image alt text, broken relative links, unsupported markdown features, and repository URLs pointing to mutable default branches.
+- Files: flags bundled font files, unexcluded test/example files or large files, and unlinked manuals.
+- Imports: flags relative imports of the entrypoint, outdated version references, and non-standard template imports.
 
 ## Development
 

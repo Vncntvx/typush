@@ -40,6 +40,19 @@ func LookPath() (string, bool) {
 	return p, true
 }
 
+// TypstVersion extracts the semver string of the typst binary, or "" if unparseable.
+func TypstVersion(bin string) string {
+	out, err := exec.Command(bin, "--version").Output()
+	if err != nil {
+		return ""
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) >= 2 {
+		return fields[1]
+	}
+	return ""
+}
+
 // isolatedEnv creates temp HOME/XDG dirs and symlinks pkgDir into
 // @preview/<name>/<version> where the child typst process looks.
 // Returns env additions and a cleanup func.

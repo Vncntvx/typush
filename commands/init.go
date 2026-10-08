@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Vncntvx/typush/manifest"
 	"github.com/Vncntvx/typush/util"
@@ -49,13 +51,18 @@ func Init(dir, nameArg string) error {
 		}
 	}
 
-	username := os.Getenv("USER")
-	if username == "" {
-		username = os.Getenv("USERNAME")
-	}
-	author, err := util.PromptLine("Enter the package author", username, false)
-	if err != nil {
-		return err
+	var author string
+	for {
+		v, err := util.PromptLine("Enter the package author", defaultAuthor(), false)
+		if err != nil {
+			return err
+		}
+		if err := manifest.ValidateAuthor(v); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+		author = v
+		break
 	}
 	var version string
 	for {
@@ -108,7 +115,7 @@ func Init(dir, nameArg string) error {
 			return err
 		}
 		if v == "" {
-			fmt.Fprintln(os.Stderr, "License is required by the Universe")
+			fmt.Fprintln(os.Stderr, "License is required by Typst Universe")
 			continue
 		}
 		if err := manifest.ValidateLicense(v); err != nil {
@@ -122,7 +129,7 @@ func Init(dir, nameArg string) error {
 	if err != nil {
 		return err
 	}
-	kwLine, err := util.PromptLine("Enter the package keywords(separated by comma)", "", true)
+	kwLine, err := util.PromptLine("Enter package keywords (separated by commas)", "", true)
 	if err != nil {
 		return err
 	}
@@ -141,15 +148,16 @@ func Init(dir, nameArg string) error {
 		}
 		u, err := url.Parse(v)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-			fmt.Fprintln(os.Stderr, "Invalid URL scheme")
+			fmt.Fprintln(os.Stderr, "Invalid URL scheme (must start with http:// or https://)")
 			continue
 		}
 		homepage = &v
 		break
 	}
 	var repository *string
+	defRepo := defaultRepo()
 	for {
-		v, err := util.PromptLine("Enter the package repository URL", "", true)
+		v, err := util.PromptLine("Enter the package repository URL", defRepo, true)
 		if err != nil {
 			return err
 		}
@@ -236,6 +244,91 @@ func Init(dir, nameArg string) error {
 			return err
 		}
 	}
-	fmt.Fprintln(os.Stderr, "Initialized.")
+
+	// Scaffold starter README.md if absent
+	readmePath := filepath.Join(dir, "README.md")
+	if _, err := os.Stat(readmePath); os.IsNotExist(err) {
+		desc := description
+		if desc == "" {
+			desc = "A Typst package."
+		}
+		readmeContent := fmt.Sprintf("# %s\n\n%s\n\n## Usage\n\n```typ\n#import \"@preview/%s:%s\": *\n```\n", name, desc, name, version)
+		_ = os.WriteFile(readmePath, []byte(readmeContent), 0o644)
+	}
+
+	// Scaffold standard LICENSE if absent and license is MIT
+	licensePath := filepath.Join(dir, "LICENSE")
+	if _, err := os.Stat(licensePath); os.IsNotExist(err) && strings.EqualFold(license, "MIT") {
+		authorName := author
+		if i := strings.Index(authorName, "<"); i >= 0 {
+			authorName = strings.TrimSpace(authorName[:i])
+		}
+		mitText := fmt.Sprintf(`MIT License
+
+Copyright (c) %d %s
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`, time.Now().Year(), authorName)
+		_ = os.WriteFile(licensePath, []byte(mitText), 0o644)
+	}
+
+	fmt.Fprintln(os.Stderr, "Package initialized.")
 	return nil
+}
+
+func defaultAuthor() string {
+	name, _ := exec.Command("git", "config", "user.name").Output()
+	email, _ := exec.Command("git", "config", "user.email").Output()
+	n := strings.TrimSpace(string(name))
+	e := strings.TrimSpace(string(email))
+	if n != "" && e != "" {
+		return fmt.Sprintf("%s <%s>", n, e)
+	}
+	if n != "" {
+		return n
+	}
+	u := os.Getenv("USER")
+	if u == "" {
+		u = os.Getenv("USERNAME")
+	}
+	return u
+}
+
+func defaultRepo() string {
+	out, err := exec.Command("git", "remote", "get-url", "origin").Output()
+	if err != nil {
+		return ""
+	}
+	remote := strings.TrimSpace(string(out))
+	if remote == "" {
+		return ""
+	}
+	if strings.Contains(remote, "github.com") {
+		rest := remote
+		if i := strings.Index(rest, "github.com"); i >= 0 {
+			rest = rest[i+len("github.com"):]
+		}
+		rest = strings.Trim(rest, ":/")
+		rest = strings.TrimSuffix(rest, ".git")
+		if rest != "" {
+			return "https://github.com/" + rest
+		}
+	}
+	return ""
 }

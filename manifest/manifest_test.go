@@ -205,3 +205,32 @@ func TestIsIdent(t *testing.T) {
 		}
 	}
 }
+
+func TestBumpVersion(t *testing.T) {
+	tests := []struct {
+		cur     string
+		target  string
+		want    string
+		wantErr bool
+	}{
+		{"0.1.0", "patch", "0.1.1", false},
+		{"0.1.9", "patch", "0.1.10", false},
+		{"0.1.0", "minor", "0.2.0", false},
+		{"0.9.5", "minor", "0.10.0", false},
+		{"0.1.0", "major", "1.0.0", false},
+		{"0.1.0", "0.5.0", "0.5.0", false},
+		{"0.1.0", "0.0.9", "", true},
+		{"0.1.0", "0.1.0", "", true},
+		{"0.1.0", "invalid", "", true},
+		{"bad-version", "patch", "", true},
+	}
+	for _, tt := range tests {
+		got, err := manifest.BumpVersion(tt.cur, tt.target)
+		if (err != nil) != tt.wantErr {
+			t.Fatalf("BumpVersion(%q, %q) err = %v, wantErr %v", tt.cur, tt.target, err, tt.wantErr)
+		}
+		if !tt.wantErr && got != tt.want {
+			t.Fatalf("BumpVersion(%q, %q) = %q, want %q", tt.cur, tt.target, got, tt.want)
+		}
+	}
+}

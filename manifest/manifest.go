@@ -173,6 +173,33 @@ func preRelease(v string) string {
 	return ""
 }
 
+// BumpVersion computes the next semver based on bumpType ("patch", "minor", "major", or an explicit version).
+func BumpVersion(current, bumpType string) (string, error) {
+	if err := ValidateVersion(current); err != nil {
+		return "", fmt.Errorf("current version %q is invalid: %w", current, err)
+	}
+	parts := parseVer(current)
+	major, minor, patch := parts[0], parts[1], parts[2]
+
+	switch strings.ToLower(strings.TrimSpace(bumpType)) {
+	case "patch":
+		return fmt.Sprintf("%d.%d.%d", major, minor, patch+1), nil
+	case "minor":
+		return fmt.Sprintf("%d.%d.0", major, minor+1), nil
+	case "major":
+		return fmt.Sprintf("%d.0.0", major+1), nil
+	default:
+		target := strings.TrimSpace(bumpType)
+		if err := ValidateVersion(target); err != nil {
+			return "", fmt.Errorf("invalid version %q: %w", target, err)
+		}
+		if CompareVersions(target, current) <= 0 {
+			return "", fmt.Errorf("target version %s must be greater than current version %s", target, current)
+		}
+		return target, nil
+	}
+}
+
 func ValidateCompiler(c string) error {
 	c = strings.TrimSpace(c)
 	if c == "" {

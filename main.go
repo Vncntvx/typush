@@ -25,8 +25,8 @@ func main() {
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "typush",
-		Short:        "A simple package manager for Typst",
-		Long:         "A simple package manager for Typst",
+		Short:        "A package manager for Typst",
+		Long:         "typush develops, validates, and publishes Typst packages.",
 		SilenceUsage: true,
 	}
 	root.AddCommand(
@@ -40,6 +40,7 @@ func NewRoot() *cobra.Command {
 		newLoginCmd(),
 		newPublishCmd(),
 		newPRCmd(),
+		newBumpCmd(),
 		newCICmd(),
 		// Back-compat aliases for the Rust CLI (breaking allowed, but keep them working):
 		newHostAliasCmd(),
@@ -61,22 +62,22 @@ func newCheckCmd() *cobra.Command {
 	var local, noCompile bool
 	c := &cobra.Command{
 		Use:   "check",
-		Short: "Check if the package is valid",
-		Long:  "Check the package against Universe submission rules (bundler + package-check, including local Typst compilation). Must be in the package directory.",
+		Short: "Validate the package against specification rules",
+		Long:  "Validate the package against Universe submission rules and run local compiler checks. Must be run in the package directory.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return checker.RunWith(cwd(), checker.Options{Local: local, NoCompile: noCompile})
 		},
 	}
-	c.Flags().BoolVar(&local, "local", false, "Only check compiler-minimal rules (name/version/entrypoint)")
-	c.Flags().BoolVar(&noCompile, "no-compile", false, "Skip the local Typst compiler checks")
+	c.Flags().BoolVar(&local, "local", false, "Validate manifest fields only")
+	c.Flags().BoolVar(&noCompile, "no-compile", false, "Skip local Typst compiler checks")
 	return c
 }
 
 func newCleanCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "clean [package]",
-		Short: "Clean the existing dev symlinks",
-		Long:  "Clean the existing dev symlinks of all packages (or a certain package) in the data directory.",
+		Short: "Remove development symlinks in @preview",
+		Long:  "Remove development symlinks for all packages or a specified package in the data directory.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
@@ -89,16 +90,32 @@ func newCleanCmd() *cobra.Command {
 }
 
 func newDevCmd() *cobra.Command {
-	var check bool
+	var (
+		check    bool
+		listFlag bool
+	)
 	c := &cobra.Command{
 		Use:   "dev",
-		Short: "Create a dev symlink",
-		Long:  "Creates a symlink to the package directory for template development.",
+		Short: "Link the package directory into @preview or list active links",
+		Long:  "Create a symlink in @preview for package development, or list existing symlinks.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if listFlag {
+				return commands.DevList()
+			}
 			return commands.Dev(cwd(), check)
 		},
 	}
-	c.Flags().BoolVar(&check, "check", false, "Check Universe for name/version conflicts before linking")
+	c.Flags().BoolVar(&check, "check", false, "Check Universe for remote naming conflicts before linking")
+	c.Flags().BoolVarP(&listFlag, "list", "l", false, "List active dev symlinks in @preview")
+
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List active dev symlinks in @preview",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commands.DevList()
+		},
+	}
+	c.AddCommand(listCmd)
 	return c
 }
 
@@ -106,14 +123,14 @@ func newDownloadCmd() *cobra.Command {
 	var checkout, namespace string
 	c := &cobra.Command{
 		Use:   "download <repository>",
-		Short: "Download a package from git repository",
-		Long:  "Download a package from git repository to a certain (defaults to `@local`) namespace.",
+		Short: "Download a package from a git repository",
+		Long:  "Download a package from a git repository into a local namespace (defaults to @local).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commands.Download(args[0], checkout, namespace)
 		},
 	}
-	c.Flags().StringVarP(&checkout, "checkout", "c", "", "Checkout to a specific tag, commit, or branch")
+	c.Flags().StringVarP(&checkout, "checkout", "c", "", "Checkout a specific tag, commit, or branch")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "local", "Namespace to install the package to (without the @ prefix)")
 	return c
 }
@@ -121,7 +138,7 @@ func newDownloadCmd() *cobra.Command {
 func newExcludeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "exclude <files...>",
-		Short: "Exclude files for the published bundle",
+		Short: "Exclude files from the published bundle",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commands.Add(cwd(), args)
@@ -147,8 +164,8 @@ func newInitCmd() *cobra.Command {
 func newInstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install <target>",
-		Short: "Install the current package to a certain namespace",
-		Long:  "Install the package to a certain namespace. Must be in the package directory.",
+		Short: "Install the current package to a namespace",
+		Long:  "Install the package in the current directory to a specified namespace.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commands.Install(cwd(), args[0])
@@ -159,8 +176,8 @@ func newInstallCmd() *cobra.Command {
 func newLoginCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "login <registry>",
-		Short: "Login to the certain registry",
-		Long:  "Verify GitHub authentication for the Universe registry via the gh CLI (offers to run `gh auth login` when needed).",
+		Short: "Verify authentication for a registry",
+		Long:  "Verify GitHub authentication for the Universe registry via the gh CLI.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if args[0] != "universe" {
@@ -175,8 +192,8 @@ func newPublishCmd() *cobra.Command {
 	var dryRun bool
 	c := &cobra.Command{
 		Use:   "publish <registry>",
-		Short: "Publish the package to a certain registry",
-		Long:  "Publish the package to the official Universe (GitHub) registry via the gh CLI (requires `gh auth login`).",
+		Short: "Publish the package to a registry",
+		Long:  "Publish the package to the official Universe registry via the gh CLI.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if args[0] != "universe" {
@@ -185,7 +202,7 @@ func newPublishCmd() *cobra.Command {
 			return commands.Publish(cwd(), dryRun)
 		},
 	}
-	c.Flags().BoolVar(&dryRun, "dry-run", false, "Dry run the publish process. No actual changes will be made.")
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "Simulate publishing without creating branches or pull requests")
 	return c
 }
 
@@ -298,4 +315,20 @@ func newPRCmd() *cobra.Command {
 	checks.Flags().BoolVarP(&watch, "watch", "w", false, "Watch CI checks until they complete")
 	c.AddCommand(status, checks)
 	return c
+}
+
+func newBumpCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "bump [patch|minor|major|<version>]",
+		Short: "Bump package version and sync references in README.md",
+		Long:  "Bump the package version in typst.toml (patch, minor, major, or explicit version) and update references in README.md.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			target := ""
+			if len(args) == 1 {
+				target = args[0]
+			}
+			return commands.Bump(cwd(), target)
+		},
+	}
 }

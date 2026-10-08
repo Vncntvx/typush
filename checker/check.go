@@ -156,6 +156,13 @@ func (c *collector) lintCompile(dir string, m *manifest.Manifest) {
 		c.warn("typst binary not found in PATH, compile checks skipped (TYPST_BIN can override)")
 		return
 	}
+	if m.Package.Compiler != nil && *m.Package.Compiler != "" {
+		if ver := TypstVersion(bin); ver != "" {
+			if manifest.CompareVersions(ver, *m.Package.Compiler) < 0 {
+				c.warn("compile/compiler-version: package requires compiler >= %s, but local typst is %s", *m.Package.Compiler, ver)
+			}
+		}
+	}
 	fmt.Fprintln(os.Stderr, "Compiling with local typst...")
 	res := CheckLibrary(bin, dir, m.Package.Name, m.Package.Version)
 	if m.Template != nil {

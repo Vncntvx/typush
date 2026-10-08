@@ -65,7 +65,7 @@ func WarnIfExists(name, version string) error {
 		}
 	}
 	if !found {
-		fmt.Fprintf(os.Stderr, "WARN: package `%s` is not available in the Universe (yet)\n", name)
+		fmt.Fprintf(os.Stderr, "WARN: package `%s` is not found in the Universe\n", name)
 		return nil
 	}
 	vers, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main")
@@ -74,7 +74,7 @@ func WarnIfExists(name, version string) error {
 	}
 	for _, v := range vers {
 		if v == version {
-			fmt.Fprintf(os.Stderr, "WARN: version `%s` is already available in the Universe\n", version)
+			fmt.Fprintf(os.Stderr, "WARN: version `%s` already exists in the Universe\n", version)
 			return nil
 		}
 	}
@@ -171,7 +171,7 @@ func Publish(packageDir string, dryRun bool) error {
 	}
 	name, version := m.Package.Name, m.Package.Version
 
-	fmt.Fprintln(os.Stderr, "Checking the packages in the official packages repo...")
+	fmt.Fprintln(os.Stderr, "Checking official packages repository...")
 	isNew := true
 	pkgs, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview", "main")
 	if err != nil {
@@ -181,7 +181,7 @@ func Publish(packageDir string, dryRun bool) error {
 		if p != name {
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "Package `%s` found in official packages repo\n", p)
+		fmt.Fprintf(os.Stderr, "Package `%s` found in official repository\n", p)
 		isNew = false
 		vers, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+p, "main")
 		if err != nil {
@@ -191,13 +191,13 @@ func Publish(packageDir string, dryRun bool) error {
 		for _, v := range vers {
 			names = append(names, v)
 			if v == version {
-				return fmt.Errorf("package version `%s` already exists in the official packages repo", version)
+				return fmt.Errorf("package version `%s` already exists in official packages repository", version)
 			}
 		}
 		fmt.Fprintf(os.Stderr, "Existing versions: %s\n", strings.Join(names, ", "))
 	}
 
-	fmt.Fprintln(os.Stderr, "Checking the pending PRs...")
+	fmt.Fprintln(os.Stderr, "Checking open pull requests...")
 	prs, err := ghOpenPullsForPackage(name)
 	if err != nil {
 		return err
@@ -212,11 +212,11 @@ func Publish(packageDir string, dryRun bool) error {
 		}
 		switch manifest.CompareVersions(v, version) {
 		case 1:
-			return fmt.Errorf("package version `%s`(newer) is already submitted in PR #%d", v, pr.Number)
+			return fmt.Errorf("package version `%s` (newer) is already submitted in PR #%d", v, pr.Number)
 		case 0:
-			return fmt.Errorf("package version `%s`(current) is already submitted in PR #%d", v, pr.Number)
+			return fmt.Errorf("package version `%s` (current) is already submitted in PR #%d", v, pr.Number)
 		default:
-			fmt.Fprintf(os.Stderr, "WARN: package version `%s`(older) is already submitted in PR #%d\n", v, pr.Number)
+			fmt.Fprintf(os.Stderr, "WARN: package version `%s` (older) is already submitted in PR #%d\n", v, pr.Number)
 		}
 	}
 
@@ -236,13 +236,13 @@ func Publish(packageDir string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stderr, "Checking your fork of the official packages repo...")
+	fmt.Fprintln(os.Stderr, "Checking fork of packages repository...")
 	myRepo, err := ghFindUserFork()
 	if err != nil {
 		return err
 	}
 	if myRepo == "" {
-		if !util.Confirm(fmt.Sprintf("You do not have a fork of %s/%s yet. Create one now?", UniverseOwner, UniverseRepo), true) {
+		if !util.Confirm(fmt.Sprintf("No fork of %s/%s found. Create one now?", UniverseOwner, UniverseRepo), true) {
 			return fmt.Errorf("aborted: fork required to create pull request")
 		}
 		fmt.Fprintf(os.Stderr, "Forking %s/%s to your account...\n", UniverseOwner, UniverseRepo)
@@ -252,10 +252,10 @@ func Publish(packageDir string, dryRun bool) error {
 		}
 		fmt.Fprintf(os.Stderr, "Fork created: %s/%s\n", me, myRepo)
 	} else {
-		fmt.Fprintf(os.Stderr, "Found your fork: %s/%s\n", me, myRepo)
+		fmt.Fprintf(os.Stderr, "Found fork: %s/%s\n", me, myRepo)
 	}
 
-	fmt.Fprintln(os.Stderr, "Creating corresponding branch in your fork...")
+	fmt.Fprintln(os.Stderr, "Creating branch in fork...")
 	if !dryRun {
 		mainSHA, err := ghBranchHead(UniverseOwner, UniverseRepo, "main")
 		if err != nil {
@@ -281,7 +281,7 @@ func Publish(packageDir string, dryRun bool) error {
 		fmt.Fprintln(os.Stderr, "Dry run: branch creation skipped")
 	}
 
-	fmt.Fprintln(os.Stderr, "Uploading files to personal fork...")
+	fmt.Fprintln(os.Stderr, "Uploading package files to fork...")
 	absPkg, _ := filepath.Abs(packageDir)
 	entries, err := util.ListPublish(absPkg)
 	if err != nil {
@@ -314,7 +314,7 @@ func Publish(packageDir string, dryRun bool) error {
 		fmt.Fprintln(os.Stderr, "Dry run: file upload skipped")
 	}
 
-	fmt.Fprintln(os.Stderr, "Generating submission PR...")
+	fmt.Fprintln(os.Stderr, "Opening submission pull request...")
 	if !dryRun {
 		url, err := ghCreateDraftPR(me+":"+sub.branch(), "main", sub.title(), sub.prBody())
 		if err != nil {
