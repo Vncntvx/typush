@@ -33,7 +33,8 @@ Nothing is needed for `build`/`test`/`vet`. The CLI itself shells out to:
 - `typst` on `PATH` (or `TYPST_BIN`) — enables the real compile checks. Absent binary only
   downgrades `typush check` to a warning, it does not fail.
 - `gh` CLI, authenticated (`gh auth login` or `GH_TOKEN`) — required by
-  `publish universe`, `pr status/checks`, `login universe`, and `dev --check`.
+  `publish universe`, `pr status/checks`, and `login universe` (also used as fallback by
+  `dev --check`).
   **No GitHub token is ever stored by typush**; `commands/gh.go` documents why.
 - `git >= 2.25` — `publish universe` uploads through `sparse-checkout --cone`.
 - `TYPST_BIN` also lets you point the checker at a specific typst build.
@@ -114,8 +115,7 @@ Common mappings:
 ## Docs and release
 
 - `README.md` (中文) and `README.en.md` (English) mirror each other; edit both.
-- `typush bump` rewrites `@preview/<name>:<version>` references **only in `README.md`** —
-  `README.en.md` needs a manual version bump.
+- `typush bump` updates `package.version` in `typst.toml` only.
 - `commands/release-typst.yml` is `go:embed`ed and written into *user* package repos by
   `ci generate`. Keep its `<<source>>` / `<<destination>>` / `<<push-to-fork>>` placeholders
   working in both quoted and bare forms.

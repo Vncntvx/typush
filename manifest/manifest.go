@@ -33,33 +33,33 @@ var Disciplines = []string{
 // Manifest maps typst.toml. Unknown [tool.*] tables are preserved via Tool.
 // Undecoded holds unknown top-level/package/template keys (bundler rejects them).
 type Manifest struct {
-	Package  PackageInfo    `toml:"package"`
-	Template *TemplateInfo  `toml:"template,omitempty"`
-	Tool     map[string]any `toml:"tool,omitempty"`
+	Package  PackageInfo    `toml:"package" json:"package"`
+	Template *TemplateInfo  `toml:"template,omitempty" json:"template,omitempty"`
+	Tool     map[string]any `toml:"tool,omitempty" json:"tool,omitempty"`
 
 	undecoded []string
 }
 
 type PackageInfo struct {
-	Name        string   `toml:"name"`
-	Version     string   `toml:"version"`
-	Entrypoint  string   `toml:"entrypoint"`
-	Authors     []string `toml:"authors"`
-	License     *string  `toml:"license,omitempty"`
-	Description *string  `toml:"description,omitempty"`
-	Homepage    *string  `toml:"homepage,omitempty"`
-	Repository  *string  `toml:"repository,omitempty"`
-	Keywords    []string `toml:"keywords,omitempty"`
-	Categories  []string `toml:"categories,omitempty"`
-	Disciplines []string `toml:"disciplines,omitempty"`
-	Compiler    *string  `toml:"compiler,omitempty"`
-	Exclude     []string `toml:"exclude,omitempty"`
+	Name        string   `toml:"name" json:"name"`
+	Version     string   `toml:"version" json:"version"`
+	Entrypoint  string   `toml:"entrypoint" json:"entrypoint"`
+	Authors     []string `toml:"authors" json:"authors"`
+	License     *string  `toml:"license,omitempty" json:"license,omitempty"`
+	Description *string  `toml:"description,omitempty" json:"description,omitempty"`
+	Homepage    *string  `toml:"homepage,omitempty" json:"homepage,omitempty"`
+	Repository  *string  `toml:"repository,omitempty" json:"repository,omitempty"`
+	Keywords    []string `toml:"keywords,omitempty" json:"keywords,omitempty"`
+	Categories  []string `toml:"categories,omitempty" json:"categories,omitempty"`
+	Disciplines []string `toml:"disciplines,omitempty" json:"disciplines,omitempty"`
+	Compiler    *string  `toml:"compiler,omitempty" json:"compiler,omitempty"`
+	Exclude     []string `toml:"exclude,omitempty" json:"exclude,omitempty"`
 }
 
 type TemplateInfo struct {
-	Path       string  `toml:"path"`
-	Entrypoint string  `toml:"entrypoint"`
-	Thumbnail  *string `toml:"thumbnail,omitempty"`
+	Path       string  `toml:"path" json:"path"`
+	Entrypoint string  `toml:"entrypoint" json:"entrypoint"`
+	Thumbnail  *string `toml:"thumbnail,omitempty" json:"thumbnail,omitempty"`
 }
 
 var (

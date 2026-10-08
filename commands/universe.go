@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Vncntvx/typush/checker"
@@ -51,32 +52,31 @@ func Login() error {
 
 // WarnIfExists warns when name/version already exist upstream (used by dev --check).
 func WarnIfExists(name, version string) error {
-	if err := requireGhPresence(); err != nil {
-		return err
-	}
-	pkgs, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview", "main")
+	vers, found, err := util.FetchRemotePackageVersions(name)
 	if err != nil {
-		return err
-	}
-	found := false
-	for _, p := range pkgs {
-		if p == name {
-			found = true
+		// Fallback to GitHub API via gh
+		if err := requireGhPresence(); err != nil {
+			return err
+		}
+		pkgs, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview", "main")
+		if err != nil {
+			return err
+		}
+		found = slices.Contains(pkgs, name)
+		if found {
+			vers, err = ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main")
+			if err != nil {
+				return err
+			}
 		}
 	}
+
 	if !found {
 		fmt.Fprintf(os.Stderr, "WARN: package `%s` is not found in the Universe\n", name)
 		return nil
 	}
-	vers, err := ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main")
-	if err != nil {
-		return err
-	}
-	for _, v := range vers {
-		if v == version {
-			fmt.Fprintf(os.Stderr, "WARN: version `%s` already exists in the Universe\n", version)
-			return nil
-		}
+	if slices.Contains(vers, version) {
+		fmt.Fprintf(os.Stderr, "WARN: version `%s` already exists in the Universe\n", version)
 	}
 	return nil
 }

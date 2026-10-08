@@ -10,11 +10,13 @@ typush 的完整命令参考与使用说明。
 2. [初始化新包 (init)](#2-初始化新包-init)
 3. [本地开发与调试 (dev, clean)](#3-本地开发与调试-dev-clean)
 4. [本地规范校验 (check)](#4-本地规范校验-check)
-5. [版本递增与引用同步 (bump)](#5-版本递增与引用同步-bump)
+5. [版本递增 (bump)](#5-版本递增-bump)
 6. [发布至 Universe (publish)](#6-发布至-universe-publish)
 7. [跟踪审查与 CI (pr)](#7-跟踪审查与-ci-pr)
 8. [本地命名空间安装与下载 (install, download)](#8-本地命名空间安装与下载-install-download)
 9. [持续集成辅助 (ci)](#9-持续集成辅助-ci)
+10. [元数据查询与脚本支持 (metadata)](#10-元数据查询与脚本支持-metadata)
+11. [数据目录路径 (path)](#11-数据目录路径-path)
 
 ---
 
@@ -82,7 +84,7 @@ Typst 运行时会从系统的本地数据目录读取 `@preview` 命名空间�
 ### 命令选项
 
 - `typush dev`：在 `@preview` 下创建软链接。如果目标路径已存在同名目录且不是软链接，会中止操作。
-- `typush dev --check`：建立链接前查询 GitHub，确认官方仓库是否已有同名或同版本的包。
+- `typush dev --check`：建立链接前优先通过官方静态 CDN 索引（`packages.typst.org`）排查线上包名与版本冲突（无需认证与 GitHub API 配额，失败时自动回退到 GitHub API）。
 - `typush dev list`（或 `-l`）：列出当前所有已链接的包、版本、状态与指向路径。
 - `typush clean [package]`：清理软链接。不带参数时清理全部开发软链接，指定名称时仅清理该包。
 
@@ -114,21 +116,20 @@ typush check [--local] [--no-compile]
 
 ---
 
-## 5. 版本递增与引用同步 (bump)
+## 5. 版本递增 (bump)
 
 ```sh
 typush bump [patch|minor|major|<version>]
 ```
 
-递增 `package.version` 并同步更新 `README.md` 中的自引用。
+递增或指定 `typst.toml` 中的 `package.version`。
 
 ### 执行逻辑
 
 1. 读取 `typst.toml` 中的当前版本。
 2. 计算新版本：支持 `patch`、`minor`、`major` 关键字或直接指定目标版本号。未提供参数时通过终端交互选择，默认推荐下一个 patch 版本。
 3. 防降级检查：目标版本必须高于当前版本。
-4. 更新 `typst.toml`。
-5. 同步文档：将 `README.md` 中形如 `@preview/<name>:<old_ver>` 的引用批量替换为新版本号。
+4. 写回 `typst.toml` 并校验格式。
 
 ---
 
@@ -205,3 +206,64 @@ typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
 
 - `typush ci plan`：扫描目录并输出供 GitHub Actions Matrix 使用的 JSON 数据。
 - `typush ci generate`：生成自动化发布工作流文件。
+
+---
+
+## 10. 元数据查询与脚本支持 (metadata)
+
+```sh
+typush metadata [field] [--json]
+```
+
+在终端中快速查看或在脚本中提取 `typst.toml` 的元数据。
+
+### 查看概览
+
+不带参数执行时，格式化输出当前包的全部元数据：
+
+```sh
+typush metadata
+```
+
+### 单字段提取（脚本友好）
+
+传入字段名直接输出该字段的纯文本值，适合在 Shell 脚本或 CI 中捕获变量：
+
+```sh
+VERSION=$(typush metadata version)
+NAME=$(typush metadata name)
+ENTRY=$(typush metadata entrypoint)
+```
+
+支持字段：`name`、`version`、`entrypoint`、`authors`、`license`、`description`、`homepage`、`repository`、`compiler`、`categories`、`disciplines`、`keywords`、`exclude`。
+
+### JSON 输出
+
+加上 `--json` 标志将元数据以标准 JSON 格式输出至 stdout，方便配合 `jq` 等工具解析：
+
+```sh
+typush metadata --json
+typush metadata authors --json
+```
+
+---
+
+## 11. 数据目录路径 (path)
+
+```sh
+typush path [namespace]
+```
+
+输出当前操作系统下 Typst 本地包的存储绝对路径。
+
+- `typush path`：输出本地包根目录（即 packages 存储路径）。
+- `typush path preview`（或 `typush path @preview`）：输出 `@preview` 命名空间路径。
+- `typush path local`（或 `typush path @local`）：输出 `@local` 命名空间路径。
+
+结合 Shell 命令快速导航或管理：
+
+```sh
+cd $(typush path)
+ls -la $(typush path preview)
+```
+

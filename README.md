@@ -49,13 +49,15 @@ typush publish universe
 ```sh
 typush --help
 typush init [name]        # 交互式初始化 typst.toml、README.md、LICENSE 与入口文件
-typush bump [patch|minor|major|<ver>] # 更新版本号并同步 README 中的包版本引用
+typush bump [patch|minor|major|<ver>] # 递增或指定 typst.toml 中的包版本号
 typush check [--local] [--no-compile]  # 校验包规范与编译状态
 typush install <ns>       # 安装到指定命名空间（例如 @local）
 typush download <repo> [-c ref] [-n ns] # 从 Git 仓库下载并安装包
-typush dev [--check]      # 链接到 @preview（可选检查线上命名冲突）
+typush dev [--check]      # 链接到 @preview（优先通过官方 CDN 检查命名冲突）
 typush dev list           # 列出 @preview 中已有的开发软链接及路径
 typush clean [package]    # 清理 @preview 中的开发软链接
+typush metadata [field] [--json] # 查看包元数据（可提取单字段或输出 JSON）
+typush path [namespace]   # 显示本地 Typst 包数据目录路径
 typush exclude <globs...> # 将指定文件添加到发布排除列表
 typush login universe     # 验证 GitHub CLI 认证状态
 typush publish universe [--dry-run]   # 校验并提交 PR 到 Universe（自动处理 fork 与分支）

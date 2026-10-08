@@ -15,6 +15,8 @@ Complete command reference and workflow documentation for typush.
 7. [Tracking PRs and CI (pr)](#7-tracking-prs-and-ci-pr)
 8. [Namespaces and Git Downloads (install, download)](#8-namespaces-and-git-downloads-install-download)
 9. [Continuous Integration Helpers (ci)](#9-continuous-integration-helpers-ci)
+10. [Metadata Inspection and Scripting (metadata)](#10-metadata-inspection-and-scripting-metadata)
+11. [Package Directory Paths (path)](#11-package-directory-paths-path)
 
 ---
 
@@ -82,7 +84,7 @@ Edits to the package source reflect immediately without copying files.
 ### Options
 
 - `typush dev`: Creates the symlink. If the target directory exists as a non-symlink, the command aborts with an error.
-- `typush dev --check`: Queries GitHub before linking to verify whether the package name or version exists in the official repository.
+- `typush dev --check`: Queries the official static CDN index (`packages.typst.org`) to check for package and version conflicts without consuming GitHub API quota (falls back to GitHub API on network errors).
 - `typush dev list` (or `-l`): Lists all active dev symlinks under `@preview`, showing package name, version, status, and target path.
 - `typush clean [package]`: Removes development symlinks. Cleans all links when run without arguments, or only the specified package.
 
@@ -120,15 +122,14 @@ Runs the validation rules from the official bundler and package-check offline.
 typush bump [patch|minor|major|<version>]
 ```
 
-Increments `package.version` and updates self-references in `README.md`.
+Increments or sets `package.version` in `typst.toml`.
 
 ### Workflow
 
 1. Reads current version from `typst.toml`.
 2. Computes target version using keywords (`patch`, `minor`, `major`) or an explicit version string. Prompts interactively if omitted, defaulting to the next patch version.
 3. Verifies that the target version is strictly greater than the current version.
-4. Updates `typst.toml`.
-5. Replaces occurrences of `@preview/<name>:<old_ver>` with `@preview/<name>:<new_ver>` in `README.md`.
+4. Writes updated version to `typst.toml`.
 
 ---
 
@@ -205,3 +206,64 @@ Helpers for repositories maintaining multiple packages.
 
 - `typush ci plan`: Scans the workspace and outputs a JSON matrix for GitHub Actions.
 - `typush ci generate`: Generates a GitHub Actions workflow file that automates package publishing.
+
+---
+
+## 10. Metadata Inspection and Scripting (metadata)
+
+```sh
+typush metadata [field] [--json]
+```
+
+Inspect or extract `typst.toml` metadata directly from the command line.
+
+### Overview
+
+When run without arguments, prints a formatted summary of package metadata:
+
+```sh
+typush metadata
+```
+
+### Single Field Extraction (Scripting)
+
+Pass a field name to output its raw value to stdout, ideal for shell scripts or CI pipelines:
+
+```sh
+VERSION=$(typush metadata version)
+NAME=$(typush metadata name)
+ENTRY=$(typush metadata entrypoint)
+```
+
+Supported fields: `name`, `version`, `entrypoint`, `authors`, `license`, `description`, `homepage`, `repository`, `compiler`, `categories`, `disciplines`, `keywords`, `exclude`.
+
+### JSON Output
+
+Pass `--json` to output structured metadata to stdout:
+
+```sh
+typush metadata --json
+typush metadata authors --json
+```
+
+---
+
+## 11. Package Directory Paths (path)
+
+```sh
+typush path [namespace]
+```
+
+Outputs the absolute filesystem path where Typst packages are stored locally.
+
+- `typush path`: Shows the local packages root directory.
+- `typush path preview` (or `typush path @preview`): Shows the `@preview` namespace directory.
+- `typush path local` (or `typush path @local`): Shows the `@local` namespace directory.
+
+Use in shell commands for quick navigation or inspection:
+
+```sh
+cd $(typush path)
+ls -la $(typush path preview)
+```
+

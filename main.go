@@ -42,6 +42,8 @@ func NewRoot() *cobra.Command {
 		newPublishCmd(),
 		newPRCmd(),
 		newBumpCmd(),
+		newMetadataCmd(),
+		newPathCmd(),
 		newCICmd(),
 		// Back-compat aliases for the Rust CLI (breaking allowed, but keep them working):
 		newHostAliasCmd(),
@@ -321,8 +323,8 @@ func newPRCmd() *cobra.Command {
 func newBumpCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "bump [patch|minor|major|<version>]",
-		Short: "Bump package version and sync references in README.md",
-		Long:  "Bump the package version in typst.toml (patch, minor, major, or explicit version) and update references in README.md.",
+		Short: "Bump package version in typst.toml",
+		Long:  "Bump package version in typst.toml (supports patch, minor, major, or explicit version).",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := ""
@@ -330,6 +332,41 @@ func newBumpCmd() *cobra.Command {
 				target = args[0]
 			}
 			return commands.Bump(cwd(), target)
+		},
+	}
+}
+
+func newMetadataCmd() *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
+		Use:   "metadata [field]",
+		Short: "Display or query package manifest metadata",
+		Long:  "Display package metadata in human-readable or JSON format, or query a specific field (e.g. name, version, authors).",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			field := ""
+			if len(args) == 1 {
+				field = args[0]
+			}
+			return commands.Metadata(cwd(), field, asJSON)
+		},
+	}
+	c.Flags().BoolVar(&asJSON, "json", false, "Output metadata in JSON format")
+	return c
+}
+
+func newPathCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "path [namespace]",
+		Short: "Show local Typst package directory path",
+		Long:  "Show the local Typst packages directory path, or the path for a specific namespace (e.g. preview, local).",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ns := ""
+			if len(args) == 1 {
+				ns = args[0]
+			}
+			return commands.Path(ns)
 		},
 	}
 }

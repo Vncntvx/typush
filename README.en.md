@@ -49,13 +49,15 @@ For complete command references and workflows, see the [User Guide](docs/guide.e
 ```sh
 typush --help
 typush init [name]        # interactively create typst.toml, README.md, LICENSE, and entrypoint
-typush bump [patch|minor|major|<ver>] # update version and sync package references in README
+typush bump [patch|minor|major|<ver>] # bump or set package version in typst.toml
 typush check [--local] [--no-compile]  # run package specifications and compiler checks
 typush install <ns>       # install to a local namespace (such as @local)
 typush download <repo> [-c ref] [-n ns] # clone and install a package from a git repository
-typush dev [--check]      # link into @preview (optional remote conflict check)
+typush dev [--check]      # link into @preview (fast conflict check via official CDN)
 typush dev list           # list active dev links in @preview and target paths
 typush clean [package]    # remove dev symlinks from @preview
+typush metadata [field] [--json] # inspect package metadata (single field or JSON)
+typush path [namespace]   # show local Typst packages directory path
 typush exclude <globs...> # add glob patterns to excluded files
 typush login universe     # verify GitHub CLI authentication
 typush publish universe [--dry-run]   # validate and submit a PR to Universe (handles fork and branch)

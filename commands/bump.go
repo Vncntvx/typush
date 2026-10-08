@@ -3,14 +3,13 @@ package commands
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Vncntvx/typush/manifest"
 	"github.com/Vncntvx/typush/util"
 )
 
-// Bump updates package version in typst.toml and synchronizes self-references in README.md.
+// Bump updates the package version in typst.toml.
 func Bump(dir, target string) error {
 	m, err := manifest.Read(dir)
 	if err != nil {
@@ -45,21 +44,6 @@ func Bump(dir, target string) error {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "✓ Updated typst.toml")
-
-	// Update self-references in README.md
-	readmePath := filepath.Join(dir, "README.md")
-	if data, err := os.ReadFile(readmePath); err == nil {
-		oldRef := fmt.Sprintf("@preview/%s:%s", m.Package.Name, curVer)
-		newRef := fmt.Sprintf("@preview/%s:%s", m.Package.Name, nextVer)
-		content := string(data)
-		if strings.Contains(content, oldRef) {
-			count := strings.Count(content, oldRef)
-			updated := strings.ReplaceAll(content, oldRef, newRef)
-			if err := os.WriteFile(readmePath, []byte(updated), 0o644); err == nil {
-				fmt.Fprintf(os.Stderr, "✓ Updated %d version reference(s) in README.md\n", count)
-			}
-		}
-	}
 
 	return nil
 }
