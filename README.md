@@ -42,6 +42,8 @@ typush dev
 typush publish universe
 ```
 
+更详细的各命令用法与参数说明请参阅 [使用指南](docs/guide.md)。
+
 ## 命令
 
 ```sh

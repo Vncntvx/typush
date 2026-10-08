@@ -42,6 +42,8 @@ Publish to Universe:
 typush publish universe
 ```
 
+For complete command references and workflows, see the [User Guide](docs/guide.en.md).
+
 ## Commands
 
 ```sh
