@@ -278,26 +278,14 @@ func Publish(packageDir string, dryRun bool) error {
 		}
 		fmt.Fprintf(os.Stderr, "Branch `%s` created\n", sub.branch())
 	} else {
-		fmt.Fprintln(os.Stderr, "Dry run: branch creation skipped")
+		previewNote("branch creation skipped")
 	}
 
 	fmt.Fprintln(os.Stderr, "Uploading package files to fork...")
 	absPkg, _ := filepath.Abs(packageDir)
-	entries, err := util.ListPublish(absPkg)
+	files, err := publishableFiles(absPkg)
 	if err != nil {
 		return err
-	}
-	var files []string // slash-separated rel paths of files only
-	for _, abs := range entries {
-		if abs == absPkg {
-			continue
-		}
-		fi, err := os.Stat(abs)
-		if err != nil || fi.IsDir() {
-			continue
-		}
-		rel, _ := filepath.Rel(absPkg, abs)
-		files = append(files, filepath.ToSlash(rel))
 	}
 	fmt.Fprintf(os.Stderr, "Files to upload:\n\t%s\n", strings.Join(files, "\n\t"))
 	if !dryRun {
@@ -311,7 +299,7 @@ func Publish(packageDir string, dryRun bool) error {
 			return err
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, "Dry run: file upload skipped")
+		previewNote("file upload skipped")
 	}
 
 	fmt.Fprintln(os.Stderr, "Opening submission pull request...")
@@ -322,9 +310,31 @@ func Publish(packageDir string, dryRun bool) error {
 		}
 		fmt.Fprintf(os.Stderr, "PR created: %s\n", url)
 	} else {
-		fmt.Fprintln(os.Stderr, "Dry run: PR creation skipped")
+		previewNote("PR creation skipped")
 	}
 	return nil
+}
+
+// publishableFiles lists the slash-separated relative paths of the files that
+// will be uploaded for packageDir, honouring .typstignore and .gitignore.
+// package.exclude is applied during installation, not when uploading files.
+func publishableFiles(packageDir string) ([]string, error) {
+	entries, err := util.ListPublish(packageDir)
+	if err != nil {
+		return nil, err
+	}
+	relEntries, err := util.RelEntries(entries, packageDir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string // slash-separated rel paths of files only
+	for _, e := range relEntries {
+		if fi, err := os.Stat(e.Abs); err != nil || fi.IsDir() {
+			continue
+		}
+		files = append(files, e.Rel)
+	}
+	return files, nil
 }
 
 func uploadSparse(userLogin, repoName string, sub submission, packageDir string, files []string) error {

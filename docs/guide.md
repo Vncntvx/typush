@@ -1,6 +1,6 @@
 # typush 使用指南
 
-typush 的完整命令参考与使用说明。
+typush 的命令参考与使用说明。
 
 ---
 
@@ -17,6 +17,7 @@ typush 的完整命令参考与使用说明。
 9. [持续集成辅助 (ci)](#9-持续集成辅助-ci)
 10. [元数据查询与脚本支持 (metadata)](#10-元数据查询与脚本支持-metadata)
 11. [数据目录路径 (path)](#11-数据目录路径-path)
+12. [排除发布文件 (exclude)](#12-排除发布文件-exclude)
 
 ---
 
@@ -62,7 +63,7 @@ typush init [package-name]
 ```sh
 typush dev [--check]
 typush dev list
-typush clean [package]
+typush clean [package] [-n|--dry-run]
 ```
 
 ### 工作原理
@@ -86,7 +87,7 @@ Typst 运行时会从系统的本地数据目录读取 `@preview` 命名空间�
 - `typush dev`：在 `@preview` 下创建软链接。如果目标路径已存在同名目录且不是软链接，会中止操作。
 - `typush dev --check`：建立链接前优先通过官方静态 CDN 索引（`packages.typst.org`）排查线上包名与版本冲突（无需认证与 GitHub API 配额，失败时自动回退到 GitHub API）。
 - `typush dev list`（或 `-l`）：列出当前所有已链接的包、版本、状态与指向路径。
-- `typush clean [package]`：清理软链接。不带参数时清理全部开发软链接，指定名称时仅清理该包。
+- `typush clean [package] [-n|--dry-run]`：清理软链接。不带参数时清理全部开发软链接，指定名称时仅清理该包。加上 `-n` 可预览将清理的软链接清单而不实际删除。
 
 ### Windows 说明
 
@@ -105,7 +106,7 @@ typush check [--local] [--no-compile]
 ### 检查规则
 
 1. **元数据**：包名必须满足 kebab-case；版本号遵循语义化版本；许可证必须是有效的 SPDX 表达式；分类与学科必须在官方允许列表中；禁止包含未知字段。
-2. **文档与链接**：README 中的图片必须有 alt 文本；相对链接引用的文件必须存在；不支持未被渲染的 GFM 扩展；仓库地址指向默认分支时会输出警告。
+2. **文档与链接**：README 中的图片必须有 alt 文本；相对链接引用的文件必须存在；不支持的 GFM 扩展会被标出；仓库地址指向默认分支时会输出警告。
 3. **文件规范**：禁止携带 `.ttf`、`.otf` 等字体文件；检查是否遗漏排除了样例或测试文件；确认 `README.md` 与 `LICENSE` 没有被 exclude 排除。
 4. **编译检查**：当 PATH 中存在 `typst` 时，在隔离临时目录中运行测试。普通包验证入口文件能否成功导入；模板包验证 `typst init` 与模板入口编译；对比本地编译器版本是否满足 `package.compiler` 要求。
 
@@ -119,7 +120,7 @@ typush check [--local] [--no-compile]
 ## 5. 版本递增 (bump)
 
 ```sh
-typush bump [patch|minor|major|<version>]
+typush bump [patch|minor|major|<version>] [-n|--dry-run]
 ```
 
 递增或指定 `typst.toml` 中的 `package.version`。
@@ -129,30 +130,30 @@ typush bump [patch|minor|major|<version>]
 1. 读取 `typst.toml` 中的当前版本。
 2. 计算新版本：支持 `patch`、`minor`、`major` 关键字或直接指定目标版本号。未提供参数时通过终端交互选择，默认推荐下一个 patch 版本。
 3. 防降级检查：目标版本必须高于当前版本。
-4. 写回 `typst.toml` 并校验格式。
+4. 写回 `typst.toml` 并校验格式。加上 `-n`（或 `--dry-run`）时仅预览版本变动结果，不修改文件；此时不进入交互，直接按下一个 patch 版本计算。
 
 ---
 
 ## 6. 发布至 Universe (publish)
 
 ```sh
-typush publish universe [--dry-run]
+typush publish universe [-n|--dry-run]
 ```
 
 向官方 `typst/packages` 仓库提交包发布请求。
 
 ### 发布流程
 
-1. **运行本地校验**：执行完整的 `typush check`，出现错误时直接终止。
+1. **运行本地校验**：执行 `typush check`，出现错误时直接终止。
 2. **远端排重**：检查官方仓库是否已存在该版本，检查是否有正在开放的同名 PR。
 3. **Fork 处理**：检查当前 GitHub 账号是否已有 `typst/packages` 的 fork。若无，交互提示后自动创建。
-4. **分支与文件过滤**：在 fork 仓库基于 `upstream/main` 创建 `<name>-<version>` 分支。根据 `.typstignore`、`.gitignore` 与 `package.exclude` 收集发布文件。
+4. **分支与文件过滤**：在 fork 仓库基于 `upstream/main` 创建 `<name>-<version>` 分支。根据 `.typstignore` 与 `.gitignore` 收集待上传文件；`package.exclude` 不过滤上传清单。
 5. **sparse-checkout 上传**：在临时目录浅克隆 fork 仓库并配置 sparse-checkout，仅同步 `packages/preview/<name>/<version>` 目录，提交单个 Commit 并推送。
-6. **创建 PR**：生成预选好对应检查项的官方模板，在 `typst/packages` 创建 Draft Pull Request 并返回链接。
+6. **创建 PR**：按官方模板预选对应检查项，在 `typst/packages` 创建 Draft Pull Request 并返回链接。
 
 ### 命令选项
 
-- `--dry-run`：执行全流程检查并打印待上传文件列表，不修改远程分支也不创建 PR。
+- `-n`（或 `--dry-run`）：依次执行检查并打印待上传文件列表，不修改远程分支也不创建 PR。
 
 ---
 
@@ -173,8 +174,8 @@ typush pr checks [number|url] [-w]
 ## 8. 本地命名空间安装与下载 (install, download)
 
 ```sh
-typush install <namespace>
-typush download <repository> [-c ref] [-n namespace]
+typush install <namespace> [-n|--dry-run]
+typush download <repository> [-c ref] [-n namespace] [--dry-run]
 ```
 
 ### 安装到本地命名空间
@@ -183,7 +184,9 @@ typush download <repository> [-c ref] [-n namespace]
 typush install local
 ```
 
-将当前包以文件副本形式安装到系统 Typst 目录的 `@local/<name>/<version>` 下，供本地使用 `#import "@local/<name>:<version>": *` 引用。
+将当前包以文件副本形式安装到系统 Typst 目录的 `@local/<name>/<version>` 下，供本地使用 `#import "@local/<name>:<version>": *` 引用。加上 `-n`（或 `--dry-run`）可预览安装目标路径与待复制文件清单，不向磁盘写入任何文件。
+
+预览模式不读取标准输入：`@` 前缀规范化、`preview` 命名空间警告与覆盖确认都以提示形式打印。
 
 ### 从 Git 仓库下载
 
@@ -191,7 +194,7 @@ typush install local
 typush download https://github.com/user/pkg -n local
 ```
 
-从远程 Git 仓库下载包并安装到指定命名空间。可用 `-c` 指定分支、tag 或 commit。
+从远程 Git 仓库下载包并安装到指定命名空间。可用 `-c` 指定分支、tag 或 commit。加上 `--dry-run` 可在临时拉取后仅做安装预览。
 
 ---
 
@@ -199,13 +202,13 @@ typush download https://github.com/user/pkg -n local
 
 ```sh
 typush ci plan [--packages "pkg1 pkg2"]
-typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
+typush ci generate [--source ...] [--push-to-fork ...] [--destination ...] [-n|--dry-run]
 ```
 
 用于在多包仓库（Monorepo）中配合 GitHub Actions 自动化发布。
 
 - `typush ci plan`：扫描目录并输出供 GitHub Actions Matrix 使用的 JSON 数据。
-- `typush ci generate`：生成自动化发布工作流文件。
+- `typush ci generate`：生成自动化发布工作流文件。加上 `-n` 可将生成的 YAML 输出到 stdout 供管道使用，不创建文件。
 
 ---
 
@@ -215,7 +218,7 @@ typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
 typush metadata [field] [--json]
 ```
 
-在终端中快速查看或在脚本中提取 `typst.toml` 的元数据。
+在终端查看，或在脚本中提取 `typst.toml` 的元数据。
 
 ### 查看概览
 
@@ -239,7 +242,7 @@ ENTRY=$(typush metadata entrypoint)
 
 ### JSON 输出
 
-加上 `--json` 标志将元数据以标准 JSON 格式输出至 stdout，方便配合 `jq` 等工具解析：
+加上 `--json` 标志将元数据以 JSON 格式输出到 stdout，可配合 `jq` 等工具解析：
 
 ```sh
 typush metadata --json
@@ -254,7 +257,7 @@ typush metadata authors --json
 typush path [namespace]
 ```
 
-输出当前操作系统下 Typst 本地包的存储绝对路径。
+输出本机 Typst 本地包的目录绝对路径。
 
 - `typush path`：输出本地包根目录（即 packages 存储路径）。
 - `typush path preview`（或 `typush path @preview`）：输出 `@preview` 命名空间路径。
@@ -266,4 +269,24 @@ typush path [namespace]
 cd $(typush path)
 ls -la $(typush path preview)
 ```
+
+---
+
+## 12. 排除发布文件 (exclude)
+
+```sh
+typush exclude <globs...> [-n|--dry-run]
+```
+
+将 glob 模式写入 `typst.toml` 的 `package.exclude`，本地安装时排除匹配的文件。此字段不会从提交到 Universe 仓库的文件清单中移除文件；如需排除上传文件，请使用 `.typstignore` 或 `.gitignore`。
+
+```sh
+typush exclude '*.log' 'tests/**'
+typush exclude -n '*.log'
+```
+
+- 模式按 `/` 分隔的相对路径匹配；不含 `/` 的模式也匹配任意层级的文件或目录名。
+- 这不是完整的 `.gitignore` 语法：排除目录内文件请使用 `tests/**`，不要使用 `tests/`；不支持 `!` 否定模式。
+- 已存在的模式不会重复添加，命令只输出实际新增的数量。
+- `-n`（或 `--dry-run`）只打印待新增的模式，不修改 `typst.toml`；模式本身仍会被校验，非法 glob 在两种模式下都会报错。
 

@@ -27,15 +27,25 @@ func ListPublish(root string) ([]string, error) {
 
 // ListInstall returns absolute paths filtered by exclude globs.
 func ListInstall(root string, excludes []string) ([]string, error) {
-	for _, p := range excludes {
-		if strings.TrimSpace(p) == "" {
-			return nil, fmt.Errorf("invalid empty exclude pattern")
-		}
-		if _, err := doublestar.Match(p, "x"); err != nil {
-			return nil, fmt.Errorf("invalid exclude pattern %q: %w", p, err)
-		}
+	if err := ValidateExcludePatterns(excludes); err != nil {
+		return nil, err
 	}
 	return walk(root, excludes)
+}
+
+// ValidateExcludePatterns reports invalid package.exclude globs before any
+// filesystem access, so callers that only need to validate a pattern set do
+// not have to pay for a directory walk.
+func ValidateExcludePatterns(excludes []string) error {
+	for _, p := range excludes {
+		if strings.TrimSpace(p) == "" {
+			return fmt.Errorf("invalid empty exclude pattern")
+		}
+		if _, err := doublestar.Match(p, "x"); err != nil {
+			return fmt.Errorf("invalid exclude pattern %q: %w", p, err)
+		}
+	}
+	return nil
 }
 
 type ignoreSet struct {

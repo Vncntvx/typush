@@ -44,7 +44,7 @@ Nothing is needed for `build`/`test`/`vet`. The CLI itself shells out to:
 | Directory | Responsibility |
 | --- | --- |
 | `main.go` | Cobra command wiring only. Every command's `RunE` is one call into `commands`. |
-| `commands/` | One file per action (`dev.go`, `install.go`, …), each taking an explicit `dir string`. |
+| `commands/` | One file per action (`dev.go`, `install.go`, …), each taking an explicit `dir string`. Cross-cutting `--dry-run` output helpers live in `dryrun.go`. |
 | `manifest/` | `typst.toml` parsing + Universe validation rules (kebab-case, SPDX, categories, thumbnail). |
 | `checker/` | Validation pipeline for a package dir. (Package doc comment still says `checkpkg` — stale.) |
 | `util/` | Walker (gitignore semantics), Typst data-dir resolution, stdin prompts. |
@@ -64,6 +64,14 @@ Adding a command = a function in `commands/` plus a `newXxxCmd()` registered in
 - **stderr vs stdout:** progress, warnings and diagnostics go to `fmt.Fprintln(os.Stderr, …)`;
   only actual command output goes to stdout (`ci plan` JSON, `dev list` table, `exclude`
   count). CI consumes `ci plan` on stdout, so never pollute it.
+- **Every `--dry-run` preview goes through `commands/dryrun.go`**
+  (`previewLine` / `previewNote` / `previewItems`) and therefore to stderr. Do not
+  hand-roll `fmt.Fprintf(os.Stderr, …)` for a preview; the helpers also give every
+  command the same shape (info lines → counted item block → one `Dry run:` summary).
+  The one intentional exception is `ci generate --dry-run`, which prints the
+  generated YAML to stdout so it can be piped into a file; its notice goes to stderr.
+  `commands.Execute` / `commands.Preview` name the two modes at call sites, so no
+  call passes a bare `true`/`false`.
 - **One shared stdin reader.** `util.Confirm` / `PromptLine` / `MultiSelect` all read a
   package-level `*bufio.Reader` over `os.Stdin`. Creating a second reader swallows piped
   input between prompts. EOF falls back to the prompt's default.

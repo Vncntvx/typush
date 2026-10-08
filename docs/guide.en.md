@@ -1,6 +1,6 @@
 # typush User Guide
 
-Complete command reference and workflow documentation for typush.
+Command reference and workflow documentation.
 
 ---
 
@@ -17,6 +17,7 @@ Complete command reference and workflow documentation for typush.
 9. [Continuous Integration Helpers (ci)](#9-continuous-integration-helpers-ci)
 10. [Metadata Inspection and Scripting (metadata)](#10-metadata-inspection-and-scripting-metadata)
 11. [Package Directory Paths (path)](#11-package-directory-paths-path)
+12. [Excluding Published Files (exclude)](#12-excluding-published-files-exclude)
 
 ---
 
@@ -62,7 +63,7 @@ When creating a template, the prompt asks for the template directory (default `t
 ```sh
 typush dev [--check]
 typush dev list
-typush clean [package]
+typush clean [package] [-n|--dry-run]
 ```
 
 ### How It Works
@@ -86,7 +87,7 @@ Edits to the package source reflect immediately without copying files.
 - `typush dev`: Creates the symlink. If the target directory exists as a non-symlink, the command aborts with an error.
 - `typush dev --check`: Queries the official static CDN index (`packages.typst.org`) to check for package and version conflicts without consuming GitHub API quota (falls back to GitHub API on network errors).
 - `typush dev list` (or `-l`): Lists all active dev symlinks under `@preview`, showing package name, version, status, and target path.
-- `typush clean [package]`: Removes development symlinks. Cleans all links when run without arguments, or only the specified package.
+- `typush clean [package] [-n|--dry-run]`: Removes development symlinks. Cleans all links when run without arguments, or only the specified package. Use `-n` to preview links that would be removed without deleting them.
 
 ### Windows Notes
 
@@ -107,7 +108,7 @@ Runs the validation rules from the official bundler and package-check offline.
 1. **Manifest**: Package name must match kebab-case; version must follow semantic versioning; license must be a valid SPDX expression; categories and disciplines must match the official list; unknown fields are rejected.
 2. **Documentation and Links**: Images in `README.md` must have alt text; relative links must resolve to existing files; unsupported markdown extensions are flagged; repository URLs pointing to default branches trigger warnings.
 3. **Files**: Bundled font files (`.ttf`, `.otf`, etc.) are rejected; unexcluded large or test files trigger warnings; checks that `README.md` and `LICENSE` are not excluded.
-4. **Compilation**: When `typst` is on `PATH`, runs isolated compile checks in temporary directories. Libraries verify entrypoint imports; templates verify `typst init` and entrypoint compilation; verifies local compiler version against `package.compiler`.
+4. **Compilation**: When `typst` is on `PATH`, runs compile checks in isolated temporary directories. Libraries verify entrypoint imports; templates verify `typst init` and entrypoint compilation; verifies local compiler version against `package.compiler`.
 
 ### Flags
 
@@ -119,7 +120,7 @@ Runs the validation rules from the official bundler and package-check offline.
 ## 5. Version Bumping (bump)
 
 ```sh
-typush bump [patch|minor|major|<version>]
+typush bump [patch|minor|major|<version>] [-n|--dry-run]
 ```
 
 Increments or sets `package.version` in `typst.toml`.
@@ -129,14 +130,14 @@ Increments or sets `package.version` in `typst.toml`.
 1. Reads current version from `typst.toml`.
 2. Computes target version using keywords (`patch`, `minor`, `major`) or an explicit version string. Prompts interactively if omitted, defaulting to the next patch version.
 3. Verifies that the target version is strictly greater than the current version.
-4. Writes updated version to `typst.toml`.
+4. Writes updated version to `typst.toml`. Pass `-n` (or `--dry-run`) to preview the bump without modifying the file; a preview never prompts and assumes the next patch version.
 
 ---
 
 ## 6. Publishing to Universe (publish)
 
 ```sh
-typush publish universe [--dry-run]
+typush publish universe [-n|--dry-run]
 ```
 
 Submits a package to the official `typst/packages` repository.
@@ -146,13 +147,13 @@ Submits a package to the official `typst/packages` repository.
 1. **Validation**: Runs `typush check`; any error aborts publication.
 2. **Conflict Checks**: Checks if the version already exists or if a matching PR is already pending.
 3. **Fork Management**: Checks if the user has a fork of `typst/packages` and prompts to create one if missing.
-4. **Branch and Files**: Creates a `<name>-<version>` branch in the fork repository. Collects publishable files respecting `.typstignore`, `.gitignore`, and `package.exclude`.
+4. **Branch and Files**: Creates a `<name>-<version>` branch in the fork repository. Collects files to upload respecting `.typstignore` and `.gitignore`; `package.exclude` does not filter the upload list.
 5. **Sparse Checkout Upload**: Creates a shallow clone in a temporary directory, configures sparse checkout for `packages/preview/<name>/<version>`, commits the files, and pushes to the fork.
 6. **Pull Request**: Opens a Draft PR on `typst/packages` with pre-filled checkboxes according to the official template.
 
 ### Flags
 
-- `--dry-run`: Runs checks and displays the file list without modifying remote branches or opening a PR.
+- `-n` (or `--dry-run`): Runs checks and displays the file list without modifying remote branches or opening a PR.
 
 ---
 
@@ -163,7 +164,7 @@ typush pr status [number|url]
 typush pr checks [number|url] [-w]
 ```
 
-Inspects pull requests and CI status directly in your terminal. If the PR number or URL is omitted, typush resolves the open PR for the current package.
+Inspects pull requests and CI check runs in your terminal. If the PR number or URL is omitted, typush resolves the open PR for the current package.
 
 - `typush pr status`: Displays PR details and reviewer comments.
 - `typush pr checks`: Displays official CI check runs. Use `-w` to wait until all runs complete.
@@ -173,8 +174,8 @@ Inspects pull requests and CI status directly in your terminal. If the PR number
 ## 8. Namespaces and Git Downloads (install, download)
 
 ```sh
-typush install <namespace>
-typush download <repository> [-c ref] [-n namespace]
+typush install <namespace> [-n|--dry-run]
+typush download <repository> [-c ref] [-n namespace] [--dry-run]
 ```
 
 ### Install to Local Namespace
@@ -183,7 +184,9 @@ typush download <repository> [-c ref] [-n namespace]
 typush install local
 ```
 
-Copies the package into `@local/<name>/<version>`. Documents can import it using `#import "@local/<name>:<version>": *`.
+Copies the package into `@local/<name>/<version>`. Documents can import it using `#import "@local/<name>:<version>": *`. Pass `-n` (or `--dry-run`) to preview the target directory and files to be installed without copying them.
+
+A preview never reads stdin: the `@` prefix normalization, the `preview` namespace warning, and the overwrite confirmation are printed as notes.
 
 ### Download from Git
 
@@ -191,7 +194,7 @@ Copies the package into `@local/<name>/<version>`. Documents can import it using
 typush download https://github.com/user/pkg -n local
 ```
 
-Downloads a package from a Git repository into a specified namespace. Use `-c` to check out a specific tag, branch, or commit.
+Downloads a package from a Git repository into a specified namespace. Use `-c` to check out a specific tag, branch, or commit. Use `--dry-run` to inspect files after downloading without installing.
 
 ---
 
@@ -199,13 +202,13 @@ Downloads a package from a Git repository into a specified namespace. Use `-c` t
 
 ```sh
 typush ci plan [--packages "pkg1 pkg2"]
-typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
+typush ci generate [--source ...] [--push-to-fork ...] [--destination ...] [-n|--dry-run]
 ```
 
 Helpers for repositories maintaining multiple packages.
 
 - `typush ci plan`: Scans the workspace and outputs a JSON matrix for GitHub Actions.
-- `typush ci generate`: Generates a GitHub Actions workflow file that automates package publishing.
+- `typush ci generate`: Generates a GitHub Actions workflow file that automates package publishing. Pass `-n` (or `--dry-run`) to print the YAML to stdout without writing files.
 
 ---
 
@@ -215,7 +218,7 @@ Helpers for repositories maintaining multiple packages.
 typush metadata [field] [--json]
 ```
 
-Inspect or extract `typst.toml` metadata directly from the command line.
+Inspect or extract `typst.toml` metadata from the command line.
 
 ### Overview
 
@@ -227,7 +230,7 @@ typush metadata
 
 ### Single Field Extraction (Scripting)
 
-Pass a field name to output its raw value to stdout, ideal for shell scripts or CI pipelines:
+Pass a field name to output its raw value to stdout, for shell scripts or CI pipelines:
 
 ```sh
 VERSION=$(typush metadata version)
@@ -254,7 +257,7 @@ typush metadata authors --json
 typush path [namespace]
 ```
 
-Outputs the absolute filesystem path where Typst packages are stored locally.
+Prints the absolute path where Typst stores local packages.
 
 - `typush path`: Shows the local packages root directory.
 - `typush path preview` (or `typush path @preview`): Shows the `@preview` namespace directory.
@@ -266,4 +269,24 @@ Use in shell commands for quick navigation or inspection:
 cd $(typush path)
 ls -la $(typush path preview)
 ```
+
+---
+
+## 12. Excluding Published Files (exclude)
+
+```sh
+typush exclude <globs...> [-n|--dry-run]
+```
+
+Writes glob patterns into the `package.exclude` field of `typst.toml` to exclude matching files during local installation. This field does not remove files from submissions to the Universe repository; use `.typstignore` or `.gitignore` to exclude files from uploads.
+
+```sh
+typush exclude '*.log' 'tests/**'
+typush exclude -n '*.log'
+```
+
+- Patterns are matched against `/`-separated relative paths; patterns without `/` also match file or directory names at any depth.
+- This is not full `.gitignore` syntax: use `tests/**`, not `tests/`, to exclude files inside a directory. Negated patterns starting with `!` are not supported.
+- Patterns already present are not added twice; the command reports only the number of new patterns.
+- `-n` (or `--dry-run`) prints the patterns that would be added and leaves `typst.toml` untouched. Patterns are still validated, so an invalid glob fails the same way in both modes.
 

@@ -22,7 +22,7 @@ func Dev(packageDir string, checkUniverse bool) error {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Cleaning up the existing symlinks...")
-	if err := CleanOne(m.Package.Name); err != nil {
+	if err := CleanOne(m.Package.Name, Execute); err != nil {
 		return err
 	}
 	if checkUniverse {

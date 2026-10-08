@@ -10,7 +10,9 @@ import (
 	"github.com/Vncntvx/typush/manifest"
 )
 
-func TestBump_DoesNotTouchReadme(t *testing.T) {
+// writeBumpPackage creates a minimal package at version 0.1.0.
+func writeBumpPackage(t *testing.T) string {
+	t.Helper()
 	dir := t.TempDir()
 	tomlContent := `[package]
 name = "my-pkg"
@@ -21,6 +23,11 @@ authors = ["Test Author"]
 	if err := os.WriteFile(filepath.Join(dir, "typst.toml"), []byte(tomlContent), 0o644); err != nil {
 		t.Fatalf("failed to write typst.toml: %v", err)
 	}
+	return dir
+}
+
+func TestBump_DoesNotTouchReadme(t *testing.T) {
+	dir := writeBumpPackage(t)
 
 	readmeContent := `# my-pkg
 
@@ -34,7 +41,7 @@ Import via:
 		t.Fatalf("failed to write README.md: %v", err)
 	}
 
-	if err := commands.Bump(dir, "patch"); err != nil {
+	if err := commands.Bump(dir, "patch", commands.Execute); err != nil {
 		t.Fatalf("Bump failed: %v", err)
 	}
 
@@ -57,5 +64,40 @@ Import via:
 	}
 	if !strings.Contains(string(readmeAfter), "@preview/my-pkg:0.1.0") {
 		t.Errorf("expected README to retain original 0.1.0 reference, but it changed")
+	}
+}
+
+func TestBump_DryRun(t *testing.T) {
+	dir := writeBumpPackage(t)
+
+	// 1. Dry run with explicit target
+	stderr, err := captureStderr(t, func() error {
+		return commands.Bump(dir, "minor", commands.Preview)
+	})
+	if err != nil {
+		t.Fatalf("Bump dry-run failed: %v", err)
+	}
+	if !strings.Contains(stderr, "Dry run: would bump version from 0.1.0 to 0.2.0 in typst.toml") {
+		t.Errorf("expected dry-run preview message, got: %s", stderr)
+	}
+
+	// Verify typst.toml was NOT updated
+	m, err := manifest.Read(dir)
+	if err != nil {
+		t.Fatalf("failed to read manifest: %v", err)
+	}
+	if m.Package.Version != "0.1.0" {
+		t.Errorf("typst.toml should not be updated in dry-run mode, got %q", m.Package.Version)
+	}
+
+	// 2. Dry run with default (empty target defaults to patch)
+	stderr, err = captureStderr(t, func() error {
+		return commands.Bump(dir, "", commands.Preview)
+	})
+	if err != nil {
+		t.Fatalf("Bump dry-run without target failed: %v", err)
+	}
+	if !strings.Contains(stderr, "Dry run: would bump version from 0.1.0 to 0.1.1 in typst.toml") {
+		t.Errorf("expected default patch preview message, got: %s", stderr)
 	}
 }

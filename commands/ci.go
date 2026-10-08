@@ -17,14 +17,30 @@ import (
 //go:embed release-typst.yml
 var releaseWorkflow string
 
+// GenerateOptions configures `ci generate` and the deprecated `generate` alias.
+type GenerateOptions struct {
+	// Source is the typst/packages repository the workflow publishes to.
+	Source string
+	// PushToFork is the fork the workflow pushes the release branch to.
+	PushToFork string
+	// Destination is the path the package is installed to inside Source.
+	Destination string
+	// DryRun prints the generated workflow to stdout instead of writing a file.
+	DryRun bool
+}
+
 // Generate writes .github/workflows/release-typst.yml with template substitution.
-func Generate(dir, source, pushToFork, destination string) error {
+// If opts.DryRun is true, the workflow is printed to stdout and no file is written.
+func Generate(dir string, opts GenerateOptions) error {
+	source := opts.Source
 	if source == "" {
 		source = "typst/packages"
 	}
+	pushToFork := opts.PushToFork
 	if pushToFork == "" {
 		pushToFork = detectPushToFork(source)
 	}
+	destination := opts.Destination
 	if destination == "" {
 		destination = "packages/preview"
 	}
@@ -36,6 +52,12 @@ func Generate(dir, source, pushToFork, destination string) error {
 	out = strings.ReplaceAll(out, "<<source>>", source)
 	out = strings.ReplaceAll(out, "<<destination>>", destination)
 	out = strings.ReplaceAll(out, "<<push-to-fork>>", pushToFork)
+
+	if opts.DryRun {
+		fmt.Print(out)
+		previewNote("release-typst.yml previewed to stdout, file not written")
+		return nil
+	}
 
 	wfDir := filepath.Join(dir, ".github", "workflows")
 	if err := os.MkdirAll(wfDir, 0o755); err != nil {

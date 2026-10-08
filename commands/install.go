@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,15 +13,18 @@ import (
 	"github.com/Vncntvx/typush/util"
 )
 
-// Run installs the package at srcDir into namespace target (without @ prefix handling).
-func Install(srcDir, target string) error {
+// Install installs the package at srcDir into namespace target (without @ prefix handling).
+// If dryRun is true, it displays the destination and file list without writing to disk.
+func Install(srcDir, target string, dryRun bool) error {
 	for strings.HasPrefix(target, "@") {
+		// The original Rust logic keeps trimming "@" until the namespace is bare;
+		// we normalize the same way and say so when previewing.
 		trimmed := target[1:]
-		if !util.Confirm(fmt.Sprintf("Namespace parameter should not contain `@` prefix. Do you mean `%s`?", trimmed), true) {
+		if dryRun {
+			previewLine("Note: normalized namespace %q to %q", target, trimmed)
+		} else if !util.Confirm(fmt.Sprintf("Namespace parameter should not contain `@` prefix. Do you mean `%s`?", trimmed), true) {
 			return fmt.Errorf("aborted")
 		}
-		_ = trimmed
-		// Original Rust logic is quirky here; we normalize to trimmed and continue.
 		target = trimmed
 	}
 	m, err := manifest.Read(srcDir)
@@ -29,7 +33,7 @@ func Install(srcDir, target string) error {
 	}
 	if target == "preview" {
 		fmt.Fprintln(os.Stderr, "WARN: installing directly to `preview` is discouraged, since it might break the versioning.")
-		if !util.Confirm("Are you sure you want to install directly to `preview`?", false) {
+		if !dryRun && !util.Confirm("Are you sure you want to install directly to `preview`?", false) {
 			return fmt.Errorf("aborted")
 		}
 	}
@@ -38,28 +42,25 @@ func Install(srcDir, target string) error {
 		return err
 	}
 	versionDir := filepath.Join(base, target, m.Package.Name, m.Package.Version)
-	if _, err := os.Stat(versionDir); err == nil {
-		// non-empty?
-		empty := true
-		entries, err := os.ReadDir(versionDir)
-		if err != nil {
-			return err
-		}
-		if len(entries) > 0 {
-			empty = false
-		}
-		if !empty {
-			if !util.Confirm(fmt.Sprintf("`@%s/%s:%s` already exists. Overwrite?", target, m.Package.Name, m.Package.Version), false) {
-				return fmt.Errorf("aborted")
-			}
-			if err := os.RemoveAll(versionDir); err != nil {
-				return err
+	// One ReadDir tells us both whether the target exists and whether it holds
+	// anything that would be overwritten.
+	if existing, err := os.ReadDir(versionDir); err == nil {
+		if len(existing) > 0 {
+			if dryRun {
+				previewLine("Note: `@%s/%s:%s` already exists and would be overwritten", target, m.Package.Name, m.Package.Version)
+			} else {
+				if !util.Confirm(fmt.Sprintf("`@%s/%s:%s` already exists. Overwrite?", target, m.Package.Name, m.Package.Version), false) {
+					return fmt.Errorf("aborted")
+				}
+				if err := os.RemoveAll(versionDir); err != nil {
+					return err
+				}
 			}
 		}
-	}
-	if err := os.MkdirAll(versionDir, 0o755); err != nil {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
+
 	absSrc, err := filepath.Abs(srcDir)
 	if err != nil {
 		return err
@@ -68,15 +69,30 @@ func Install(srcDir, target string) error {
 	if err != nil {
 		return err
 	}
-	for _, abs := range entries {
-		if abs == absSrc {
-			continue
+	// Relative paths are derived once and shared by the preview and the copy.
+	relEntries, err := util.RelEntries(entries, absSrc)
+	if err != nil {
+		return err
+	}
+
+	if dryRun {
+		relPaths := make([]string, 0, len(relEntries))
+		for _, e := range relEntries {
+			relPaths = append(relPaths, e.Rel)
 		}
-		rel, err := filepath.Rel(absSrc, abs)
-		if err != nil {
-			return err
-		}
-		dest := filepath.Join(versionDir, rel)
+		previewLine("Destination directory:\n  %s", versionDir)
+		previewItems("entries to install", relPaths)
+		previewNote("installation skipped, no files written")
+		return nil
+	}
+
+	if err := os.MkdirAll(versionDir, 0o755); err != nil {
+		return err
+	}
+
+	for _, e := range relEntries {
+		abs := e.Abs
+		dest := filepath.Join(versionDir, e.Rel)
 		fi, err := os.Lstat(abs)
 		if err != nil {
 			return err

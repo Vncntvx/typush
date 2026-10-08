@@ -61,6 +61,17 @@ func cwd() string {
 	return d
 }
 
+// registerDryRun adds the shared -n/--dry-run preview flag to a command.
+func registerDryRun(cmd *cobra.Command, dst *bool, usage string) {
+	cmd.Flags().BoolVarP(dst, "dry-run", "n", false, usage)
+}
+
+// registerDryRunNoShorthand adds --dry-run without a shorthand, for commands
+// that already use -n for something else (download's --namespace).
+func registerDryRunNoShorthand(cmd *cobra.Command, dst *bool, usage string) {
+	cmd.Flags().BoolVar(dst, "dry-run", false, usage)
+}
+
 func newCheckCmd() *cobra.Command {
 	var local, noCompile bool
 	c := &cobra.Command{
@@ -77,6 +88,7 @@ func newCheckCmd() *cobra.Command {
 }
 
 func newCleanCmd() *cobra.Command {
+	var dryRun bool
 	c := &cobra.Command{
 		Use:   "clean [package]",
 		Short: "Remove development symlinks in @preview",
@@ -84,11 +96,12 @@ func newCleanCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
-				return commands.CleanOne(args[0])
+				return commands.CleanOne(args[0], dryRun)
 			}
-			return commands.CleanAll()
+			return commands.CleanAll(dryRun)
 		},
 	}
+	registerDryRun(c, &dryRun, "Preview symlinks to be removed without deleting them")
 	return c
 }
 
@@ -123,30 +136,37 @@ func newDevCmd() *cobra.Command {
 }
 
 func newDownloadCmd() *cobra.Command {
-	var checkout, namespace string
+	var (
+		checkout, namespace string
+		dryRun              bool
+	)
 	c := &cobra.Command{
 		Use:   "download <repository>",
 		Short: "Download a package from a git repository",
 		Long:  "Download a package from a git repository into a local namespace (defaults to @local).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commands.Download(args[0], checkout, namespace)
+			return commands.Download(args[0], checkout, namespace, dryRun)
 		},
 	}
 	c.Flags().StringVarP(&checkout, "checkout", "c", "", "Checkout a specific tag, commit, or branch")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "local", "Namespace to install the package to (without the @ prefix)")
+	registerDryRunNoShorthand(c, &dryRun, "Preview the package installation without writing files")
 	return c
 }
 
 func newExcludeCmd() *cobra.Command {
-	return &cobra.Command{
+	var dryRun bool
+	c := &cobra.Command{
 		Use:   "exclude <files...>",
 		Short: "Exclude files from the published bundle",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commands.Add(cwd(), args)
+			return commands.Add(cwd(), args, dryRun)
 		},
 	}
+	registerDryRun(c, &dryRun, "Preview exclude patterns to add without updating typst.toml")
+	return c
 }
 
 func newInitCmd() *cobra.Command {
@@ -165,15 +185,18 @@ func newInitCmd() *cobra.Command {
 }
 
 func newInstallCmd() *cobra.Command {
-	return &cobra.Command{
+	var dryRun bool
+	c := &cobra.Command{
 		Use:   "install <target>",
 		Short: "Install the current package to a namespace",
 		Long:  "Install the package in the current directory to a specified namespace.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commands.Install(cwd(), args[0])
+			return commands.Install(cwd(), args[0], dryRun)
 		},
 	}
+	registerDryRun(c, &dryRun, "Preview files to be installed without writing to disk")
+	return c
 }
 
 func newLoginCmd() *cobra.Command {
@@ -205,7 +228,7 @@ func newPublishCmd() *cobra.Command {
 			return commands.Publish(cwd(), dryRun)
 		},
 	}
-	c.Flags().BoolVar(&dryRun, "dry-run", false, "Simulate publishing without creating branches or pull requests")
+	registerDryRun(c, &dryRun, "Simulate publishing without creating branches or pull requests")
 	return c
 }
 
@@ -213,18 +236,25 @@ func newCICmd() *cobra.Command {
 	c := &cobra.Command{Use: "ci", Short: "CI helpers"}
 	var (
 		genSource, genPushToFork, genDestination string
+		genDryRun                                bool
 		planPackages                             string
 	)
 	gen := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate CI that publishes the package automatically",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commands.Generate(cwd(), genSource, genPushToFork, genDestination)
+			return commands.Generate(cwd(), commands.GenerateOptions{
+				Source:      genSource,
+				PushToFork:  genPushToFork,
+				Destination: genDestination,
+				DryRun:      genDryRun,
+			})
 		},
 	}
 	gen.Flags().StringVar(&genSource, "source", "", "The destination typst/packages")
 	gen.Flags().StringVar(&genPushToFork, "push-to-fork", "", "The forked repository from typst/packages")
 	gen.Flags().StringVar(&genDestination, "destination", "", "The path to install the package in the source repository")
+	registerDryRun(gen, &genDryRun, "Print the generated workflow to stdout without creating files")
 	plan := &cobra.Command{
 		Use:   "plan",
 		Short: "Scan workspace and print the CI matrix JSON",
@@ -269,17 +299,24 @@ func newHostAliasCmd() *cobra.Command {
 // Back-compat: `typush generate` == `typush ci generate`
 func newGenerateAliasCmd() *cobra.Command {
 	var source, pushToFork, destination string
+	var dryRun bool
 	c := &cobra.Command{
 		Use:    "generate",
 		Short:  "Generate CI (deprecated: use `ci generate`)",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commands.Generate(cwd(), source, pushToFork, destination)
+			return commands.Generate(cwd(), commands.GenerateOptions{
+				Source:      source,
+				PushToFork:  pushToFork,
+				Destination: destination,
+				DryRun:      dryRun,
+			})
 		},
 	}
 	c.Flags().StringVar(&source, "source", "", "")
 	c.Flags().StringVar(&pushToFork, "push-to-fork", "", "")
 	c.Flags().StringVar(&destination, "destination", "", "")
+	registerDryRun(c, &dryRun, "")
 	return c
 }
 
@@ -321,7 +358,8 @@ func newPRCmd() *cobra.Command {
 }
 
 func newBumpCmd() *cobra.Command {
-	return &cobra.Command{
+	var dryRun bool
+	c := &cobra.Command{
 		Use:   "bump [patch|minor|major|<version>]",
 		Short: "Bump package version in typst.toml",
 		Long:  "Bump package version in typst.toml (supports patch, minor, major, or explicit version).",
@@ -331,9 +369,11 @@ func newBumpCmd() *cobra.Command {
 			if len(args) == 1 {
 				target = args[0]
 			}
-			return commands.Bump(cwd(), target)
+			return commands.Bump(cwd(), target, dryRun)
 		},
 	}
+	registerDryRun(c, &dryRun, "Preview the version bump without updating typst.toml")
+	return c
 }
 
 func newMetadataCmd() *cobra.Command {

@@ -8,8 +8,9 @@ import (
 	"github.com/Vncntvx/typush/util"
 )
 
-// Run clones repo (+ optional checkout ref) into a temp dir then installs.
-func Download(repository, checkout, namespace string) error {
+// Download clones repo (+ optional checkout ref) into a temp dir then installs.
+// If dryRun is true, it previews the installation without copying files to the local packages directory.
+func Download(repository, checkout, namespace string, dryRun bool) error {
 	tmp := util.TempSubdir(repository)
 	_ = os.RemoveAll(tmp)
 	if err := os.MkdirAll(tmp, 0o755); err != nil {
@@ -39,8 +40,15 @@ func Download(repository, checkout, namespace string) error {
 			return fmt.Errorf("failed to checkout: %w", err)
 		}
 	}
+	if dryRun {
+		if err := Install(tmp, namespace, dryRun); err != nil {
+			return err
+		}
+		previewNote("download preview finished, nothing installed")
+		return nil
+	}
 	fmt.Fprintln(os.Stderr, "Installing...")
-	if err := Install(tmp, namespace); err != nil {
+	if err := Install(tmp, namespace, dryRun); err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Done")
