@@ -24,9 +24,10 @@ func main() {
 
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "typush",
-		Short: "A simple package manager for Typst",
-		Long:  "A simple package manager for Typst",
+		Use:          "typush",
+		Short:        "A simple package manager for Typst",
+		Long:         "A simple package manager for Typst",
+		SilenceUsage: true,
 	}
 	root.AddCommand(
 		newCheckCmd(),
@@ -38,6 +39,7 @@ func NewRoot() *cobra.Command {
 		newInstallCmd(),
 		newLoginCmd(),
 		newPublishCmd(),
+		newPRCmd(),
 		newCICmd(),
 		// Back-compat aliases for the Rust CLI (breaking allowed, but keep them working):
 		newHostAliasCmd(),
@@ -258,5 +260,42 @@ func newGenerateAliasCmd() *cobra.Command {
 	c.Flags().StringVar(&source, "source", "", "")
 	c.Flags().StringVar(&pushToFork, "push-to-fork", "", "")
 	c.Flags().StringVar(&destination, "destination", "", "")
+	return c
+}
+
+func newPRCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:          "pr",
+		Short:        "Manage and inspect Universe pull requests",
+		Long:         "Inspect open pull requests and CI check runs on the official Universe repository.",
+		SilenceUsage: true,
+	}
+	status := &cobra.Command{
+		Use:   "status [number|url]",
+		Short: "View PR details, comments, and reviewer activity",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ref := ""
+			if len(args) == 1 {
+				ref = args[0]
+			}
+			return commands.PRStatus(cwd(), ref)
+		},
+	}
+	var watch bool
+	checks := &cobra.Command{
+		Use:   "checks [number|url]",
+		Short: "View or watch CI check runs for a submission PR",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ref := ""
+			if len(args) == 1 {
+				ref = args[0]
+			}
+			return commands.PRChecks(cwd(), ref, watch)
+		},
+	}
+	checks.Flags().BoolVarP(&watch, "watch", "w", false, "Watch CI checks until they complete")
+	c.AddCommand(status, checks)
 	return c
 }

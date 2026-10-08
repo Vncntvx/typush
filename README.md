@@ -54,7 +54,9 @@ typush dev [--check]      # 符号链接进 @preview（可选 Universe 冲突检
 typush clean [package]
 typush exclude <globs...>
 typush login universe
-typush publish universe [--dry-run]   # 本地 Universe 校验 + sparse-checkout 上传 + 草稿 PR
+typush publish universe [--dry-run]   # 本地 Universe 校验 + 自动 Fork 探测 + sparse-checkout 上传 + 草稿 PR
+typush pr status [number|url]         # 查看 PR 详情、审核评论与进展（缺省自动根据当前目录包探测）
+typush pr checks [number|url] [-w]    # 查看或监听 Universe 官方 CI 运行结果
 typush ci plan [--packages "a b"]     # 扫描工作区 -> CI matrix JSON
 typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
 ```
@@ -73,7 +75,9 @@ typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
 ## 设计取舍
 
 - 用 Go 编写，编译为单一静态二进制，通过 GoReleaser 发布。
-- GitHub 操作（认证检查、API 查询、创建 PR）统一通过 `gh` CLI 完成，不直接调用 GitHub API；`publish` 只支持 sparse-checkout 上传，需要 git >= 2.25。
+- GitHub 操作（认证检查、API 查询、自动 Fork、创建 PR、CI 监控）统一通过 `gh` CLI 完成，不直接调用 GitHub API。
+- Git 网络操作自动挂载 `gh auth git-credential` 凭据助手，免配置打通权限。
+- `publish` 上传采用单 Commit sparse-checkout，需要 git >= 2.25。
 - `check` 覆盖官方 `bundler` 的硬性错误规则。
 - `dev` 默认跳过 Universe 网络检查，需要时加 `--check`。
 - `host` / `generate` 合并到 `ci` 子命令，旧名称作为隐藏别名保留。

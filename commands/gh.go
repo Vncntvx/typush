@@ -2,7 +2,6 @@ package commands
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,9 +27,9 @@ func requireGhAuth() error {
 	if err := requireGhPresence(); err != nil {
 		return err
 	}
-	cmd := exec.Command("gh", "auth", "status")
+	cmd := exec.Command("gh", "auth", "token")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("gh is not authenticated. Run `gh auth login` first: %s", firstLine(string(out)))
+		return fmt.Errorf("gh is not authenticated. Run `gh auth login` or set GH_TOKEN: %s", firstLine(string(out)))
 	}
 	return nil
 }
@@ -46,7 +45,7 @@ func firstLine(s string) string {
 // ghAPI runs `gh api ...` and returns stdout. API/CLI errors are surfaced
 // with gh's own stderr message.
 func ghAPI(args ...string) ([]byte, error) {
-	cmd := exec.Command("gh", "api")
+	cmd := exec.Command("gh", "api", "-H", "X-GitHub-Api-Version: 2022-11-28")
 	cmd.Args = append(cmd.Args, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -88,13 +87,14 @@ type ghPull struct {
 	Title  string `json:"title"`
 }
 
-// ghOpenPulls lists open PRs of the Universe repo (title + number).
-func ghOpenPulls() ([]ghPull, error) {
+// ghOpenPullsForPackage lists open PRs of the Universe repo for a package (title + number).
+func ghOpenPullsForPackage(pkgName string) ([]ghPull, error) {
 	if err := requireGhPresence(); err != nil {
 		return nil, err
 	}
 	cmd := exec.Command("gh", "pr", "list", "--repo", UniverseOwner+"/"+UniverseRepo,
-		"--state", "open", "--json", "number,title", "--limit", "500")
+		"--state", "open", "--search", fmt.Sprintf("%s in:title", pkgName),
+		"--json", "number,title")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -121,6 +121,53 @@ func ghCurrentUser() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// ghFindUserFork finds the user's fork of UniverseOwner/UniverseRepo.
+// Returns the fork repo name (e.g. "packages"), or "" if no fork exists.
+func ghFindUserFork() (string, error) {
+	query := fmt.Sprintf(`query {
+		repository(owner: %q, name: %q) {
+			forks(affiliations: OWNER, first: 1) {
+				nodes {
+					name
+				}
+			}
+		}
+	}`, UniverseOwner, UniverseRepo)
+	out, err := ghAPI("graphql", "-f", "query="+query, "--jq", ".data.repository.forks.nodes[0].name // empty")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// ghEnsureFork ensures the user has a fork of UniverseOwner/UniverseRepo.
+// If not found, it provisions one using `gh repo fork --clone=false`.
+func ghEnsureFork() (string, error) {
+	name, err := ghFindUserFork()
+	if err != nil {
+		return "", err
+	}
+	if name != "" {
+		return name, nil
+	}
+	cmd := exec.Command("gh", "repo", "fork", UniverseOwner+"/"+UniverseRepo, "--clone=false")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := firstLine(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("gh repo fork: %s", msg)
+	}
+	name, err = ghFindUserFork()
+	if err != nil || name == "" {
+		return UniverseRepo, nil
+	}
+	return name, nil
+}
+
 // ghForkParentFull returns the parent's "owner/repo" of a repo, or "" if none.
 func ghForkParentFull(owner, repo string) (string, error) {
 	out, err := ghAPI(fmt.Sprintf("repos/%s/%s", owner, repo), "--jq", `.parent.full_name // "none"`)
@@ -142,18 +189,17 @@ func ghBranchHead(owner, repo, branch string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// ghBranchExists reports whether a branch exists.
+// ghBranchExists reports whether a branch exists in a repo using O(1) git ref query.
 func ghBranchExists(owner, repo, branch string) (bool, error) {
-	out, err := ghAPI(fmt.Sprintf("repos/%s/%s/branches", owner, repo), "--paginate", "--jq", ".[].name")
+	_, err := ghAPI(fmt.Sprintf("repos/%s/%s/git/ref/heads/%s", owner, repo, branch))
 	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "Not Found") || strings.Contains(errMsg, "404") {
+			return false, nil
+		}
 		return false, err
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.TrimSpace(line) == branch {
-			return true, nil
-		}
-	}
-	return false, nil
+	return true, nil
 }
 
 // ghDeleteBranch deletes a branch via the git-refs API.
@@ -170,36 +216,13 @@ func ghCreateBranch(owner, repo, branch, sha string) error {
 	return err
 }
 
-// ghCreateFile creates a file via the Contents API (used to initialize the
-// version directory before the sparse-checkout upload).
-func ghCreateFile(owner, repo, path, message, branch string, content []byte) error {
-	_, err := ghAPI("--method", "PUT",
-		fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, strings.TrimPrefix(path, "/")),
-		"-f", "message="+message,
-		"-f", "content="+base64.StdEncoding.EncodeToString(content),
-		"-f", "branch="+branch)
-	return err
-}
-
-// ghCreateDraftPR opens a draft PR and returns its URL.
+// ghCreateDraftPR opens a draft PR using stdin streaming and returns its URL.
 func ghCreateDraftPR(head, base, title, body string) (string, error) {
-	f, err := os.CreateTemp("", "typush-pr-*")
-	if err != nil {
-		return "", err
-	}
-	name := f.Name()
-	defer os.Remove(name)
-	if _, err := f.WriteString(body); err != nil {
-		f.Close()
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		return "", err
-	}
 	cmd := exec.Command("gh", "pr", "create",
 		"--repo", UniverseOwner+"/"+UniverseRepo,
 		"--head", head, "--base", base,
-		"--title", title, "--body-file", name, "--draft")
+		"--title", title, "--body-file", "-", "--draft")
+	cmd.Stdin = strings.NewReader(body)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -211,4 +234,39 @@ func ghCreateDraftPR(head, base, title, body string) (string, error) {
 		return "", fmt.Errorf("gh pr create: %s", msg)
 	}
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+// ghPRView views a PR on the official packages repository.
+func ghPRView(prRef string) error {
+	if err := requireGhPresence(); err != nil {
+		return err
+	}
+	args := []string{"pr", "view", "--repo", UniverseOwner + "/" + UniverseRepo}
+	if prRef != "" {
+		args = append(args, prRef)
+	}
+	cmd := exec.Command("gh", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// ghPRChecks views CI checks on a PR on the official packages repository.
+func ghPRChecks(prRef string, watch bool) error {
+	if err := requireGhPresence(); err != nil {
+		return err
+	}
+	args := []string{"pr", "checks", "--repo", UniverseOwner + "/" + UniverseRepo}
+	if prRef != "" {
+		args = append(args, prRef)
+	}
+	if watch {
+		args = append(args, "--watch")
+	}
+	cmd := exec.Command("gh", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

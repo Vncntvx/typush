@@ -54,7 +54,9 @@ typush dev [--check]      # symlink into @preview (+ optional Universe conflict 
 typush clean [package]
 typush exclude <globs...>
 typush login universe
-typush publish universe [--dry-run]   # local Universe check + sparse-checkout upload + draft PR
+typush publish universe [--dry-run]   # local Universe check + auto fork detection + sparse-checkout upload + draft PR
+typush pr status [number|url]         # view PR details, reviewer comments and activity
+typush pr checks [number|url] [-w]    # view or watch official Universe CI check runs
 typush ci plan [--packages "a b"]     # workspace scan -> CI matrix JSON
 typush ci generate [--source ...] [--push-to-fork ...] [--destination ...]
 ```
@@ -73,7 +75,9 @@ If `typst` is on your `PATH` (override with `TYPST_BIN`), `typush check` also ru
 ## Design decisions
 
 - Written in Go, built as a single static binary, released with GoReleaser.
-- GitHub operations (auth checks, API queries, PR creation) go through the `gh` CLI; the GitHub API is not called directly. `publish` only supports sparse-checkout upload, which requires git >= 2.25.
+- GitHub operations (auth checks, API queries, auto-forking, PR creation, CI monitoring) go through the `gh` CLI; the GitHub API is not called directly.
+- Git network operations automatically bridge credentials via `gh auth git-credential`.
+- `publish` uploads packages using single-commit sparse-checkout, which requires git >= 2.25.
 - `check` covers the official `bundler` hard errors.
 - `dev` skips the Universe network check by default; pass `--check` to enable it.
 - `host` / `generate` are merged under the `ci` subcommand; the old names remain as hidden aliases.

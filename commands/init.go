@@ -189,7 +189,7 @@ func Init(dir, nameArg string) error {
 		Package: manifest.PackageInfo{
 			Name: name, Authors: []string{author}, Version: version,
 			Categories: categories, Disciplines: disciplines,
-			License: &license,
+			License:     &license,
 			Description: &description, Keywords: keywords,
 			Entrypoint: entrypoint, Homepage: homepage,
 			Repository: repository, Compiler: compiler,

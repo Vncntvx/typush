@@ -24,7 +24,7 @@ func Login() error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return fmt.Errorf("the `gh` CLI is required but not found in PATH. Install it from https://cli.github.com")
 	}
-	if err := exec.Command("gh", "auth", "status").Run(); err == nil {
+	if err := exec.Command("gh", "auth", "token").Run(); err == nil {
 		login, err := ghCurrentUser()
 		if err != nil {
 			return err
@@ -198,7 +198,7 @@ func Publish(packageDir string, dryRun bool) error {
 	}
 
 	fmt.Fprintln(os.Stderr, "Checking the pending PRs...")
-	prs, err := ghOpenPulls()
+	prs, err := ghOpenPullsForPackage(name)
 	if err != nil {
 		return err
 	}
@@ -236,16 +236,23 @@ func Publish(packageDir string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
-	myRepo, err := util.PromptLine("Enter the name of your forked repository", UniverseRepo, false)
+	fmt.Fprintln(os.Stderr, "Checking your fork of the official packages repo...")
+	myRepo, err := ghFindUserFork()
 	if err != nil {
 		return err
 	}
-	parent, err := ghForkParentFull(me, myRepo)
-	if err != nil {
-		return err
-	}
-	if parent != UniverseOwner+"/"+UniverseRepo {
-		return fmt.Errorf("the given repository is not a fork of the official packages repo")
+	if myRepo == "" {
+		if !util.Confirm(fmt.Sprintf("You do not have a fork of %s/%s yet. Create one now?", UniverseOwner, UniverseRepo), true) {
+			return fmt.Errorf("aborted: fork required to create pull request")
+		}
+		fmt.Fprintf(os.Stderr, "Forking %s/%s to your account...\n", UniverseOwner, UniverseRepo)
+		myRepo, err = ghEnsureFork()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "Fork created: %s/%s\n", me, myRepo)
+	} else {
+		fmt.Fprintf(os.Stderr, "Found your fork: %s/%s\n", me, myRepo)
 	}
 
 	fmt.Fprintln(os.Stderr, "Creating corresponding branch in your fork...")
@@ -321,14 +328,6 @@ func Publish(packageDir string, dryRun bool) error {
 }
 
 func uploadSparse(userLogin, repoName string, sub submission, packageDir string, files []string) error {
-	typstToml, err := os.ReadFile(filepath.Join(packageDir, "typst.toml"))
-	if err != nil {
-		return err
-	}
-	if err := ghCreateFile(userLogin, repoName, sub.repoPath()+"/typst.toml",
-		"[typush] Initialize package version directory", sub.branch(), typstToml); err != nil {
-		return err
-	}
 	tmp, err := os.MkdirTemp("", "typush-*")
 	if err != nil {
 		return err
@@ -337,7 +336,11 @@ func uploadSparse(userLogin, repoName string, sub submission, packageDir string,
 
 	forkURL := fmt.Sprintf("https://github.com/%s/%s.git", userLogin, repoName)
 	run := func(dir string, args ...string) error {
-		cmd := exec.Command("git", args...)
+		gitArgs := append([]string{
+			"-c", "credential.helper=",
+			"-c", "credential.helper=!gh auth git-credential",
+		}, args...)
+		cmd := exec.Command("git", gitArgs...)
 		cmd.Dir = dir
 		cmd.Stdin = os.Stdin
 		out, err := cmd.CombinedOutput()
@@ -381,11 +384,9 @@ func uploadSparse(userLogin, repoName string, sub submission, packageDir string,
 		return err
 	}
 	// commit may report nothing to commit; tolerate it
-	cmd := exec.Command("git", "commit", "-m", fmt.Sprintf("[typush] Add package %s:%s", sub.name, sub.version))
-	cmd.Dir = repoPath
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !strings.Contains(string(out), "nothing to commit") {
-			return fmt.Errorf("git commit: %v: %s", err, strings.TrimSpace(string(out)))
+	if err := run(repoPath, "commit", "-m", fmt.Sprintf("[typush] Add package %s:%s", sub.name, sub.version)); err != nil {
+		if !strings.Contains(err.Error(), "nothing to commit") {
+			return err
 		}
 	}
 	if err := run(repoPath, "push", "origin", sub.branch()); err != nil {
