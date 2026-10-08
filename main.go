@@ -25,6 +25,7 @@ func main() {
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "typush",
+		Version:      version,
 		Short:        "A package manager for Typst",
 		Long:         "typush develops, validates, and publishes Typst packages.",
 		SilenceUsage: true,

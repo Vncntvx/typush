@@ -5,6 +5,7 @@ before:
   hooks:
     - go mod tidy
     - go vet ./...
+    - go test ./...
 
 builds:
   - id: typush
@@ -23,6 +24,7 @@ archives:
     formats: [tar.gz, zip]
     files:
       - README.md
+      - README.en.md
       - LICENSE*
 
 checksum:
@@ -35,14 +37,16 @@ changelog:
   sort: asc
   use: github
 
-brews:
-  - id: typush
-    repository:
-      owner: Vncntvx
-      name: homebrew-typush
-    homepage: https://github.com/Vncntvx/typush
-    description: A simple package manager for Typst
-    license: MIT
+# Homebrew tap is paused until Vncntvx/homebrew-typush repository is created.
+# brews:
+#   - id: typush
+#     repository:
+#       owner: Vncntvx
+#       name: homebrew-typush
+#     homepage: https://github.com/Vncntvx/typush
+#     description: A package manager for Typst
+#     license: MIT
+brews: []
 
 nfpms: []
 snapcrafts: []
