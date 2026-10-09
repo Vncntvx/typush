@@ -6,7 +6,7 @@ typush 的命令参考与使用说明。
 
 ## 目录
 
-1. [环境准备](#1-环境准备)
+1. [安装与环境准备](#1-安装与环境准备)
 2. [初始化新包 (init)](#2-初始化新包-init)
 3. [本地开发与调试 (dev, clean)](#3-本地开发与调试-dev-clean)
 4. [本地规范校验 (check)](#4-本地规范校验-check)
@@ -26,7 +26,27 @@ typush 的命令参考与使用说明。
 
 ---
 
-## 1. 环境准备
+## 1. 安装与环境准备
+
+### 安装方式
+
+#### Homebrew (macOS / Linux)
+
+```sh
+brew install Vncntvx/tap/typush
+```
+
+#### Go Install
+
+```sh
+go install github.com/Vncntvx/typush@latest
+```
+
+#### 预编译二进制
+
+可直接从 [GitHub Releases](https://github.com/Vncntvx/typush/releases) 下载对应平台的预编译二进制文件。
+
+### 运行时依赖
 
 typush 是单一静态二进制，没有运行时依赖。部分子命令依赖以下工具：
 

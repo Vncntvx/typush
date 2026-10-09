@@ -153,7 +153,8 @@ Common mappings:
   `ci generate`. Keep its `<<source>>` / `<<destination>>` / `<<push-to-fork>>` placeholders
   working in both quoted and bare forms.
 - Releases are goreleaser on `v*` tags; the binary is named `typush` and `main.version` is
-  injected via ldflags. The Homebrew tap is intentionally commented out.
+  injected via ldflags. The Homebrew tap pushes formulas to `Vncntvx/homebrew-tap` using
+  `HOMEBREW_TAP_GITHUB_TOKEN`.
 
 ### Release notes format
 

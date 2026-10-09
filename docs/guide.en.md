@@ -6,7 +6,7 @@ Command reference and workflow documentation.
 
 ## Contents
 
-1. [Prerequisites](#1-prerequisites)
+1. [Installation and Prerequisites](#1-installation-and-prerequisites)
 2. [Initializing a Package (init)](#2-initializing-a-package-init)
 3. [Local Development and Debugging (dev, clean)](#3-local-development-and-debugging-dev-clean)
 4. [Local Verification (check)](#4-local-verification-check)
@@ -26,7 +26,27 @@ Command reference and workflow documentation.
 
 ---
 
-## 1. Prerequisites
+## 1. Installation and Prerequisites
+
+### Installation
+
+#### Homebrew (macOS / Linux)
+
+```sh
+brew install Vncntvx/tap/typush
+```
+
+#### Go Install
+
+```sh
+go install github.com/Vncntvx/typush@latest
+```
+
+#### Prebuilt Binaries
+
+Download precompiled archives for your platform from [GitHub Releases](https://github.com/Vncntvx/typush/releases).
+
+### Prerequisites
 
 typush is a single static binary without runtime dependencies. Several subcommands call external tools:
 

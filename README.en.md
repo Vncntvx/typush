@@ -12,11 +12,19 @@ The name combines Typst and push, referring to publishing packages to [universe]
 
 ## Installation
 
+Using Homebrew (macOS / Linux):
+
+```sh
+brew install Vncntvx/tap/typush
+```
+
+Using Go:
+
 ```sh
 go install github.com/Vncntvx/typush@latest
 ```
 
-You can also download a prebuilt binary for your platform from [Releases](https://github.com/Vncntvx/typush/releases).
+Or download a prebuilt binary for your platform from [Releases](https://github.com/Vncntvx/typush/releases).
 
 ## Prerequisites
 

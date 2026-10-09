@@ -12,11 +12,19 @@ typush 用于开发与发布 [Typst](https://typst.app/) 包，覆盖本地开�
 
 ## 安装
 
+使用 Homebrew（macOS / Linux）：
+
+```sh
+brew install Vncntvx/tap/typush
+```
+
+使用 Go 安装：
+
 ```sh
 go install github.com/Vncntvx/typush@latest
 ```
 
-也可以从 [Releases](https://github.com/Vncntvx/typush/releases) 下载对应平台的二进制文件。
+也可以直接从 [Releases](https://github.com/Vncntvx/typush/releases) 下载对应平台的预编译二进制文件。
 
 ## 前置要求
 

@@ -11,6 +11,8 @@ builds:
   - id: typush
     main: .
     binary: typush
+    flags:
+      - -trimpath
     ldflags:
       - -s -w -X main.version={{.Version}}
     goos: [linux, darwin, windows]
@@ -37,16 +39,17 @@ changelog:
   sort: asc
   use: github
 
-# Homebrew tap is paused until Vncntvx/homebrew-typush repository is created.
-# brews:
-#   - id: typush
-#     repository:
-#       owner: Vncntvx
-#       name: homebrew-typush
-#     homepage: https://github.com/Vncntvx/typush
-#     description: A package manager for Typst
-#     license: MIT
-brews: []
+brews:
+  - repository:
+      owner: Vncntvx
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/Vncntvx/typush
+    description: Package manager for Typst
+    license: MIT
+    test: |
+      system "#{bin}/typush", "--version"
 
 nfpms: []
 snapcrafts: []
