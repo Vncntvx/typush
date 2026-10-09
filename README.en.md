@@ -56,6 +56,10 @@ typush download <repo> [-c ref] [-n ns] [--dry-run]  # clone and install a packa
 typush dev [--check]                                 # link into @preview (fast conflict check via official CDN)
 typush dev list                                      # list active dev links in @preview and target paths
 typush clean [package] [-n]                          # remove dev symlinks from @preview (supports -n dry-run)
+typush search <query> [--limit 20] [--json]          # search packages on Universe
+typush info <package>[:version] [--json]             # view package metadata and version history
+typush outdated [path] [--json]                      # check for outdated dependencies in .typ files
+typush update [package...] [-n] [--file path]        # update package dependencies in .typ files (supports -n dry-run)
 typush metadata [field] [--json]                     # inspect package metadata (single field or JSON)
 typush path [namespace]                              # show local Typst packages directory path
 typush exclude <globs...> [-n]                       # add glob patterns to excluded files (supports -n dry-run)

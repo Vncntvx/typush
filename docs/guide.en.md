@@ -18,6 +18,8 @@ Command reference and workflow documentation.
 10. [Metadata Inspection and Scripting (metadata)](#10-metadata-inspection-and-scripting-metadata)
 11. [Package Directory Paths (path)](#11-package-directory-paths-path)
 12. [Excluding Published Files (exclude)](#12-excluding-published-files-exclude)
+13. [Package Search and Details (search, info)](#13-package-search-and-details-search-info)
+14. [Dependency Checking and Updating (outdated, update)](#14-dependency-checking-and-updating-outdated-update)
 
 ---
 
@@ -290,3 +292,105 @@ typush exclude -n '*.log'
 - Patterns already present are not added twice; the command reports only the number of new patterns.
 - `-n` (or `--dry-run`) prints the patterns that would be added and leaves `typst.toml` untouched. Patterns are still validated, so an invalid glob fails the same way in both modes.
 
+---
+
+## 13. Package Search and Details (search, info)
+
+Search packages on Typst Universe and inspect their metadata and release history.
+
+### Searching packages (search)
+
+```sh
+typush search <query> [--limit 20] [--json] [--refresh]
+```
+
+Searches across package names, prefixes, keywords, categories, descriptions, and authors. Results are ordered by relevance, showing only the newest version of each package.
+
+The index is downloaded from the official CDN and cached locally (15-minute TTL). If the CDN is unavailable but a cached copy exists, the command falls back to the cache and logs a warning to stderr.
+
+- `-l, --limit <n>`: Maximum number of results to display. Defaults to 20; a non-positive value falls back to the default.
+- `--json`: Output search results with scores in JSON format.
+- `--refresh`: Download a fresh index, ignoring the local cache.
+
+```sh
+typush search diagram
+typush search cetz --limit 5
+typush search math --json
+```
+
+### Viewing package details (info)
+
+```sh
+typush info <package>[:version] [--json] [--refresh]
+```
+
+Displays metadata for a package, including its description, license, authors, repository URL, compiler requirements, categories, keywords, and release history.
+
+If no version is specified, it displays the latest release. You can also inspect an earlier version. The package may be written as `fletcher`, `@preview/fletcher`, or `preview/fletcher`, and is validated against the Universe rules. The output ends with an `#import` snippet.
+
+- `--json`: Output package metadata in JSON format.
+- `--refresh`: Refresh remote package metadata.
+
+```sh
+typush info fletcher
+typush info fletcher:0.5.0
+typush info @preview/cetz:0.2.2 --json
+```
+
+---
+
+## 14. Dependency Checking and Updating (outdated, update)
+
+Inspect and update `@preview` package imports across `.typ` files. Scanning skips files matched by `.typstignore` or `.gitignore`.
+
+### Checking for updates (outdated)
+
+```sh
+typush outdated [path] [--json] [--refresh]
+```
+
+Scans `.typ` files in the given directory or file, finds all `@preview/<name>:<version>` imports, and checks them against the newest releases on Universe.
+
+The output table lists each package's current versions, latest version, status, and source locations (collapsed to `(+N more)` beyond the first two). There are three statuses:
+
+- `Up to date`: already on the newest release.
+- `Update available`: a newer release exists.
+- `Unknown (not in Universe)`: the package is absent from the Universe index (for example, a misspelled name).
+
+If the index cannot be loaded and no cached copy exists, the command exits with an error.
+
+- `[path]`: Directory or `.typ` file to scan (defaults to the current directory).
+- `--json`: Output dependency status in JSON format; `status` is `up-to-date`, `outdated`, or `not-in-universe`.
+- `--refresh`: Refresh the Universe index before comparing.
+
+```sh
+typush outdated
+typush outdated main.typ
+typush outdated ./chapters --json
+```
+
+### Updating dependencies (update)
+
+```sh
+typush update [package...] [-n|--dry-run] [-f|--file path] [--refresh]
+```
+
+Updates `@preview` package references in `.typ` files to their latest versions on Universe. Only the version string is replaced, preserving quotes, indentation, and line endings (LF or CRLF), including a missing final newline. Scanning reads each file once; a file that needs changes is then read once more and written once through an atomic same-directory replacement. A reference whose version is already newer than the index's latest is left untouched, so an update never lowers a version.
+
+- `-n` (or `--dry-run`): Shows line-level diffs (`-` / `+`) without modifying files.
+- `-f, --file <path>`: Update dependencies only in the specified file.
+- `[package...]`: One or more package names to update. If omitted, updates all outdated dependencies. Typush warns if a requested package was not found during scanning.
+
+```sh
+# Preview update diffs without modifying files
+typush update -n
+
+# Update all outdated dependencies
+typush update
+
+# Update specific packages only
+typush update cetz fletcher
+
+# Update dependencies in one file only
+typush update -f main.typ
+```

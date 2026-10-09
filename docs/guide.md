@@ -18,6 +18,8 @@ typush 的命令参考与使用说明。
 10. [元数据查询与脚本支持 (metadata)](#10-元数据查询与脚本支持-metadata)
 11. [数据目录路径 (path)](#11-数据目录路径-path)
 12. [排除发布文件 (exclude)](#12-排除发布文件-exclude)
+13. [包检索与信息查询 (search, info)](#13-包检索与信息查询-search-info)
+14. [依赖检查与更新 (outdated, update)](#14-依赖检查与更新-outdated-update)
 
 ---
 
@@ -290,3 +292,105 @@ typush exclude -n '*.log'
 - 已存在的模式不会重复添加，命令只输出实际新增的数量。
 - `-n`（或 `--dry-run`）只打印待新增的模式，不修改 `typst.toml`；模式本身仍会被校验，非法 glob 在两种模式下都会报错。
 
+---
+
+## 13. 包检索与信息查询 (search, info)
+
+在终端中检索 Typst Universe 的包并查看其元数据与历史版本。
+
+### 线上检索 (search)
+
+```sh
+typush search <query> [--limit 20] [--json] [--refresh]
+```
+
+根据包名、前缀、关键字、分类、描述与作者进行加权搜索。结果会按相关度降序排列，每个包仅展示最新版本。
+
+索引从官方 CDN 获取并缓存在本地（有效期 15 分钟）。若网络不可用但存在本地缓存，则回退到缓存并在 stderr 打印警告。
+
+- `-l, --limit <n>`：限制返回条数，默认 20；传入非正数时回退为默认值。
+- `--json`：以 JSON 格式输出包含匹配分数的搜索结果。
+- `--refresh`：忽略本地缓存，重新从官方 CDN 获取最新索引。
+
+```sh
+typush search diagram
+typush search cetz --limit 5
+typush search math --json
+```
+
+### 查看包详情 (info)
+
+```sh
+typush info <package>[:version] [--json] [--refresh]
+```
+
+查看 Universe 包的详细元数据，包括描述、许可证、作者、代码仓库、最低编译器版本、分类、标签，以及全部历史发布版本。
+
+未指定版本时默认显示最新版本；也可以查询指定历史版本。包名可写作 `fletcher`、`@preview/fletcher` 或 `preview/fletcher`，并会按 Universe 规则校验。输出末尾会提供对应的 `#import` 语句。
+
+- `--json`：以 JSON 格式输出包详情。
+- `--refresh`：重新从官方 CDN 获取最新索引。
+
+```sh
+typush info fletcher
+typush info fletcher:0.5.0
+typush info @preview/cetz:0.2.2 --json
+```
+
+---
+
+## 14. 依赖检查与更新 (outdated, update)
+
+管理本地 `.typ` 文件中引用的 `@preview` 包依赖。扫描会跳过 `.typstignore` 与 `.gitignore` 匹配的文件。
+
+### 检查依赖版本 (outdated)
+
+```sh
+typush outdated [path] [--json] [--refresh]
+```
+
+扫描指定目录（或单个文件）下的所有 `.typ` 文件，提取 `@preview/<name>:<version>` 导入，并与 Universe 上的最新版本比对。
+
+输出表格包含当前引用版本、最新版本、状态，以及出现的文件与行号（超过两处时折叠为 `(+N more)`）。状态有三种：
+
+- `Up to date`：已是最新版本。
+- `Update available`：存在更新版本。
+- `Unknown (not in Universe)`：该包在 Universe 索引中不存在（例如包名拼写错误）。
+
+若索引无法加载且无本地缓存，命令直接报错。
+
+- `[path]`：指定扫描的目录或单个 `.typ` 文件路径（默认为当前目录）。
+- `--json`：以 JSON 格式输出依赖状态，`status` 为 `up-to-date`、`outdated` 或 `not-in-universe`。
+- `--refresh`：重新拉取 Universe 索引进行比对。
+
+```sh
+typush outdated
+typush outdated main.typ
+typush outdated ./chapters --json
+```
+
+### 更新依赖版本 (update)
+
+```sh
+typush update [package...] [-n|--dry-run] [-f|--file path] [--refresh]
+```
+
+将 `.typ` 文件中的 `@preview` 包版本更新为 Universe 最新版本。更新时只替换版本号字符串，保留原有的单双引号、缩进与换行风格（LF 或 CRLF），包括文件末尾缺少换行的情况。扫描时每个文件读取一次；需要修改的文件在写入阶段只读一次、只写一次（通过同目录临时文件原子替换）。文件中已有比索引最新版本更新的版本时保持不变，因此 `update` 只会向前推进版本，不会降级。
+
+- `-n`（或 `--dry-run`）：预览每个文件的版本变更差异（`-` / `+`），不修改文件。
+- `-f, --file <path>`：仅更新指定 `.typ` 文件内的依赖。
+- `[package...]`：指定待更新的包名；省略时更新所有过时依赖。若指定的包未在扫描文件中出现，会输出警告。
+
+```sh
+# 预览更新差异
+typush update -n
+
+# 更新全部过时依赖
+typush update
+
+# 仅更新指定包
+typush update cetz fletcher
+
+# 仅更新单个文件内的依赖
+typush update -f main.typ
+```

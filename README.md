@@ -56,6 +56,10 @@ typush download <repo> [-c ref] [-n ns] [--dry-run]  # 从 Git 仓库下载并�
 typush dev [--check]                                 # 链接到 @preview（优先通过官方 CDN 检查命名冲突）
 typush dev list                                      # 列出 @preview 中已有的开发软链接及路径
 typush clean [package] [-n]                          # 清理 @preview 中的开发软链接（支持 -n 模拟运行）
+typush search <query> [--limit 20] [--json]          # 搜索 Universe 包
+typush info <package>[:version] [--json]             # 查看 Universe 包元数据与版本历史
+typush outdated [path] [--json]                      # 检查 .typ 文件中的过时依赖
+typush update [package...] [-n] [--file path]        # 更新 .typ 中的依赖版本（支持 -n 模拟运行）
 typush metadata [field] [--json]                     # 查看包元数据（可提取单字段或输出 JSON）
 typush path [namespace]                              # 显示本地 Typst 包数据目录路径
 typush exclude <globs...> [-n]                       # 将指定文件添加到发布排除列表（支持 -n 模拟运行）

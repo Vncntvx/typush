@@ -44,10 +44,10 @@ Nothing is needed for `build`/`test`/`vet`. The CLI itself shells out to:
 | Directory | Responsibility |
 | --- | --- |
 | `main.go` | Cobra command wiring only. Every command's `RunE` is one call into `commands`. |
-| `commands/` | One file per action (`dev.go`, `install.go`, …), each taking an explicit `dir string`. Cross-cutting `--dry-run` output helpers live in `dryrun.go`. |
+| `commands/` | One file per action (`dev.go`, `install.go`, …), each taking explicit arguments, some grouped in an options struct (`UpdateOptions`, `UniverseOptions`). Shared helpers: `dryrun.go` (preview framing), `output.go` (stderr writers, tables, JSON), `deps.go` (dependency scan + rewrite), `index.go` (index load + stale warning). |
 | `manifest/` | `typst.toml` parsing + Universe validation rules (kebab-case, SPDX, categories, thumbnail). |
-| `checker/` | Validation pipeline for a package dir. (Package doc comment still says `checkpkg` — stale.) |
-| `util/` | Walker (gitignore semantics), Typst data-dir resolution, stdin prompts. |
+| `checker/` | Validation pipeline for a package dir. |
+| `util/` | Walker (gitignore semantics), Typst data-dir/cache-dir resolution, stdin prompts, the Universe index + its disk cache (`registry.go`). |
 
 Adding a command = a function in `commands/` plus a `newXxxCmd()` registered in
 `NewRoot()` (`main.go`).
@@ -61,17 +61,23 @@ Adding a command = a function in `commands/` plus a `newXxxCmd()` registered in
 - **`ghDirNames` must keep using the Git Trees API**, not the Contents API. The Contents
   API caps directory listings at 1000 entries and `packages/preview` exceeds that, so
   updates silently look like new packages.
-- **stderr vs stdout:** progress, warnings and diagnostics go to `fmt.Fprintln(os.Stderr, …)`;
-  only actual command output goes to stdout (`ci plan` JSON, `dev list` table, `exclude`
-  count). CI consumes `ci plan` on stdout, so never pollute it.
+- **stderr vs stdout:** progress, warnings and diagnostics go to stderr through
+  `commands/output.go` — `infof` for a line, `warnf` for a `WARN:` line. Do not hand-roll
+  `fmt.Fprintf(os.Stderr, …)` for either. Only actual command output goes to stdout
+  (`ci plan` JSON, `dev list` table, `exclude` count); a "nothing found" notice is a
+  diagnostic and belongs on stderr too. CI consumes `ci plan` on stdout, so never pollute it.
 - **Every `--dry-run` preview goes through `commands/dryrun.go`**
-  (`previewLine` / `previewNote` / `previewItems`) and therefore to stderr. Do not
-  hand-roll `fmt.Fprintf(os.Stderr, …)` for a preview; the helpers also give every
-  command the same shape (info lines → counted item block → one `Dry run:` summary).
+  (`previewNote` / `previewItems`, on top of `infof` for unprefixed lines) and therefore to
+  stderr. The helpers give every command the same shape (info lines → one counted
+  `Dry run:` item block → at most one `Dry run:` summary), and a command that delegates to
+  another preview (`download` calling `install`) must not add a second summary.
+  An item may span several lines (`previewItems` indents every one), which is how `update`
+  shows a `-`/`+` diff inside the counted block.
   The one intentional exception is `ci generate --dry-run`, which prints the
   generated YAML to stdout so it can be piped into a file; its notice goes to stderr.
   `commands.Execute` / `commands.Preview` name the two modes at call sites, so no
-  call passes a bare `true`/`false`.
+  call passes a bare `true`/`false`; the same rule is why the shared `AsJSON`/`Refresh`
+  flags travel as `UniverseOptions`.
 - **One shared stdin reader.** `util.Confirm` / `PromptLine` / `MultiSelect` all read a
   package-level `*bufio.Reader` over `os.Stdin`. Creating a second reader swallows piped
   input between prompts. EOF falls back to the prompt's default.
@@ -79,6 +85,25 @@ Adding a command = a function in `commands/` plus a `newXxxCmd()` registered in
   `.typstignore` then `.gitignore` are read per directory (nested), dotfiles are skipped,
   `.git` is pruned, dotfiles themselves are never returned, and `package.exclude` globs
   apply only in the install path. Don't "fix" the recursion.
+  Dependency scanning (`commands/deps.go`) goes through `util.ListTypSources`, which reuses
+  this walker, so ignored files are never scanned or rewritten. Do not add a second walk.
+- **The Universe index is loaded once per command.** `util.LoadUniverseIndex` returns a
+  `*UniverseIndex` whose lookups are map reads; never call it inside a per-package loop
+  (that reintroduces N downloads and N parses of a multi-megabyte index). It returns an
+  error only when no index can be produced, and reports a cache fallback through
+  `StaleErr()`, so callers never present missing data as current. A body that does not
+  decode never replaces the cached copy, which is the only offline fallback. The library
+  layer prints nothing; the `commands` layer renders the fallback as a warning in
+  `loadUniverseIndex` (`commands/index.go`), which every caller uses.
+- **`util.WriteFileAtomic` (`util/atomic.go`) is the only atomic-replace primitive.**
+  The index cache and the `update` rewrite both go through it; do not add a second
+  temp-file-and-rename implementation.
+- **A dependency rewrite only moves versions forward.** `commands/deps.go` replaces a
+  spec's version only when it is older than the plan's target. A file edited after the
+  index was read therefore keeps its version, and re-running changes nothing.
+  `previewSpecRe` is shared by scanning and rewriting, so the two agree on what counts as
+  a dependency, and `--dry-run` runs the same rewrite as a real run, so a preview shows
+  what the run writes.
 - `typush host` and `typush generate` are hidden back-compat aliases for `ci plan` /
   `ci generate`. Keep them working.
 
