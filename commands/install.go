@@ -21,7 +21,7 @@ func Install(srcDir, target string, dryRun bool) error {
 		// we normalize the same way and say so when previewing.
 		trimmed := target[1:]
 		if dryRun {
-			previewLine("Note: normalized namespace %q to %q", target, trimmed)
+			infof("Note: normalized namespace %q to %q", target, trimmed)
 		} else if !util.Confirm(fmt.Sprintf("Namespace parameter should not contain `@` prefix. Do you mean `%s`?", trimmed), true) {
 			return fmt.Errorf("aborted")
 		}
@@ -32,7 +32,7 @@ func Install(srcDir, target string, dryRun bool) error {
 		return err
 	}
 	if target == "preview" {
-		fmt.Fprintln(os.Stderr, "WARN: installing directly to `preview` is discouraged, since it might break the versioning.")
+		warnf("installing directly to `preview` is discouraged, since it might break the versioning.")
 		if !dryRun && !util.Confirm("Are you sure you want to install directly to `preview`?", false) {
 			return fmt.Errorf("aborted")
 		}
@@ -47,7 +47,7 @@ func Install(srcDir, target string, dryRun bool) error {
 	if existing, err := os.ReadDir(versionDir); err == nil {
 		if len(existing) > 0 {
 			if dryRun {
-				previewLine("Note: `@%s/%s:%s` already exists and would be overwritten", target, m.Package.Name, m.Package.Version)
+				infof("Note: `@%s/%s:%s` already exists and would be overwritten", target, m.Package.Name, m.Package.Version)
 			} else {
 				if !util.Confirm(fmt.Sprintf("`@%s/%s:%s` already exists. Overwrite?", target, m.Package.Name, m.Package.Version), false) {
 					return fmt.Errorf("aborted")
@@ -80,7 +80,7 @@ func Install(srcDir, target string, dryRun bool) error {
 		for _, e := range relEntries {
 			relPaths = append(relPaths, e.Rel)
 		}
-		previewLine("Destination directory:\n  %s", versionDir)
+		infof("Destination directory:\n  %s", versionDir)
 		previewItems("entries to install", relPaths)
 		previewNote("installation skipped, no files written")
 		return nil
@@ -110,16 +110,17 @@ func Install(srcDir, target string, dryRun bool) error {
 				return err
 			}
 			abs = target2
-		}
-		st, err := os.Stat(abs)
-		if err != nil {
-			return err
-		}
-		if st.IsDir() {
-			if err := os.MkdirAll(dest, 0o755); err != nil {
+			// A resolved symlink may point to a directory.
+			st, err := os.Stat(abs)
+			if err != nil {
 				return err
 			}
-			continue
+			if st.IsDir() {
+				if err := os.MkdirAll(dest, 0o755); err != nil {
+					return err
+				}
+				continue
+			}
 		}
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err

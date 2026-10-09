@@ -13,7 +13,9 @@ import (
 	"github.com/Vncntvx/typush/util"
 )
 
-// Run interactively initializes a new package in dir.
+// Init interactively initializes a new package in dir, writing typst.toml
+// plus starter README.md, LICENSE and entrypoint files. nameArg skips the
+// package-name prompt when non-empty.
 func Init(dir, nameArg string) error {
 	if _, err := manifest.Read(dir); err == nil {
 		if !util.Confirm("A package manifest already exists. Overwrite?", false) {

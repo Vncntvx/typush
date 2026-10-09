@@ -44,6 +44,10 @@ func NewRoot() *cobra.Command {
 		newBumpCmd(),
 		newMetadataCmd(),
 		newPathCmd(),
+		newSearchCmd(),
+		newInfoCmd(),
+		newOutdatedCmd(),
+		newUpdateCmd(),
 		newCICmd(),
 		// Back-compat aliases for the Rust CLI (breaking allowed, but keep them working):
 		newHostAliasCmd(),
@@ -151,7 +155,7 @@ func newDownloadCmd() *cobra.Command {
 	}
 	c.Flags().StringVarP(&checkout, "checkout", "c", "", "Checkout a specific tag, commit, or branch")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "local", "Namespace to install the package to (without the @ prefix)")
-	registerDryRunNoShorthand(c, &dryRun, "Preview the package installation without writing files")
+	registerDryRunNoShorthand(c, &dryRun, "Clone and preview the installation without copying files into the namespace")
 	return c
 }
 
@@ -316,7 +320,7 @@ func newGenerateAliasCmd() *cobra.Command {
 	c.Flags().StringVar(&source, "source", "", "")
 	c.Flags().StringVar(&pushToFork, "push-to-fork", "", "")
 	c.Flags().StringVar(&destination, "destination", "", "")
-	registerDryRun(c, &dryRun, "")
+	registerDryRun(c, &dryRun, "Print the generated workflow to stdout without creating files")
 	return c
 }
 
@@ -409,4 +413,78 @@ func newPathCmd() *cobra.Command {
 			return commands.Path(ns)
 		},
 	}
+}
+
+func newSearchCmd() *cobra.Command {
+	var (
+		opt   commands.UniverseOptions
+		limit int
+	)
+	c := &cobra.Command{
+		Use:   "search <query>",
+		Short: "Search packages in Typst Universe",
+		Long:  "Search packages in Typst Universe by name, description, categories, and keywords.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commands.Search(args[0], limit, opt)
+		},
+	}
+	c.Flags().IntVarP(&limit, "limit", "l", commands.DefaultSearchLimit, "Maximum number of search results")
+	c.Flags().BoolVar(&opt.AsJSON, "json", false, "Output results in JSON format")
+	c.Flags().BoolVar(&opt.Refresh, "refresh", false, "Refresh the local Universe index cache")
+	return c
+}
+
+func newInfoCmd() *cobra.Command {
+	var opt commands.UniverseOptions
+	c := &cobra.Command{
+		Use:   "info <package>[:version]",
+		Short: "Show package details from Typst Universe",
+		Long:  "Display detailed metadata, authors, license, compiler requirements, and version history for a package in Typst Universe.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commands.Info(args[0], opt)
+		},
+	}
+	c.Flags().BoolVar(&opt.AsJSON, "json", false, "Output package info in JSON format")
+	c.Flags().BoolVar(&opt.Refresh, "refresh", false, "Refresh the local Universe index cache")
+	return c
+}
+
+func newOutdatedCmd() *cobra.Command {
+	var opt commands.UniverseOptions
+	c := &cobra.Command{
+		Use:   "outdated [path]",
+		Short: "Check for outdated package dependencies in .typ files",
+		Long:  "Scan .typ files recursively for @preview package imports and compare them against the latest versions in Typst Universe.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			target := cwd()
+			if len(args) == 1 {
+				target = args[0]
+			}
+			return commands.Outdated(target, opt)
+		},
+	}
+	c.Flags().BoolVar(&opt.AsJSON, "json", false, "Output outdated dependencies in JSON format")
+	c.Flags().BoolVar(&opt.Refresh, "refresh", false, "Refresh the local Universe index cache")
+	return c
+}
+
+func newUpdateCmd() *cobra.Command {
+	var opt commands.UpdateOptions
+	c := &cobra.Command{
+		Use:   "update [package...]",
+		Short: "Update package dependencies in .typ files to latest versions",
+		Long:  "Update @preview package imports in .typ files to their latest versions from Typst Universe.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opt.Dir = cwd()
+			opt.Packages = args
+			return commands.Update(opt)
+		},
+	}
+	registerDryRun(c, &opt.DryRun, "Preview dependency updates without modifying files")
+	c.Flags().StringVarP(&opt.File, "file", "f", "", "Update dependencies only within the specified .typ file")
+	c.Flags().BoolVar(&opt.Refresh, "refresh", false, "Refresh the local Universe index cache")
+	return c
 }

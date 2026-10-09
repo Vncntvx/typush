@@ -132,7 +132,8 @@ func GitSupportsSparseCheckout() bool {
 	return maj > 2 || (maj == 2 && min >= 25)
 }
 
-// RunGit runs git with inherited stdio and returns the error if any.
+// RunGit runs git with stdin from os.Stdin and both stdout and stderr directed
+// to os.Stderr.
 func RunGit(dir string, args ...string) error {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir

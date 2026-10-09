@@ -17,7 +17,7 @@ var (
 	pkgSpecRe = regexp.MustCompile(`@([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+):([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.\-]+)?(?:\+[0-9A-Za-z.\-]+)?)`)
 )
 
-// Imports checks .typ sources:
+// Imports checks #import/#include targets in .typ sources:
 //   - relative imports that resolve to the package entrypoint -> warning
 //     (should use the package specification instead)
 //   - imports of the package itself with an older version -> error

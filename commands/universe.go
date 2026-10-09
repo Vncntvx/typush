@@ -51,9 +51,17 @@ func Login() error {
 }
 
 // WarnIfExists warns when name/version already exist upstream (used by dev --check).
+// It checks the Universe index first and falls back to the GitHub API, which the
+// publish path also uses.
 func WarnIfExists(name, version string) error {
-	vers, found, err := util.FetchRemotePackageVersions(name)
-	if err != nil {
+	var vers []string
+	found := false
+
+	idx, err := loadUniverseIndex(false)
+	if err == nil {
+		vers = idx.Versions(name)
+		found = len(vers) > 0
+	} else {
 		// Fallback to GitHub API via gh
 		if err := requireGhPresence(); err != nil {
 			return err
@@ -64,19 +72,18 @@ func WarnIfExists(name, version string) error {
 		}
 		found = slices.Contains(pkgs, name)
 		if found {
-			vers, err = ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main")
-			if err != nil {
+			if vers, err = ghDirNames(UniverseOwner, UniverseRepo, "packages/preview/"+name, "main"); err != nil {
 				return err
 			}
 		}
 	}
 
 	if !found {
-		fmt.Fprintf(os.Stderr, "WARN: package `%s` is not found in the Universe\n", name)
+		warnf("package `%s` is not found in the Universe", name)
 		return nil
 	}
 	if slices.Contains(vers, version) {
-		fmt.Fprintf(os.Stderr, "WARN: version `%s` already exists in the Universe\n", version)
+		warnf("version `%s` already exists in the Universe", version)
 	}
 	return nil
 }
@@ -141,22 +148,14 @@ func (s submission) prBody() string {
 	return strings.ReplaceAll(out, "\n", "\r\n")
 }
 
+// parseSubmissionTitle extracts the name and version from a submission PR title
+// such as "name:1.2.3" or "@preview/name:1.2.3".
 func parseSubmissionTitle(title string) (name, version string, ok bool) {
-	t := strings.TrimSpace(title)
-	// Accept "name:version" and "@preview/name:version" (CI-generated titles).
-	t = strings.TrimPrefix(t, "@preview/")
-	t = strings.TrimPrefix(t, "preview/")
-	parts := strings.Split(t, ":")
-	if len(parts) != 2 {
+	name, version, err := parsePackageSpec(title)
+	if err != nil || version == "" {
 		return "", "", false
 	}
-	if err := manifest.ValidateName(parts[0]); err != nil {
-		return "", "", false
-	}
-	if err := manifest.ValidateVersion(parts[1]); err != nil {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
+	return name, version, true
 }
 
 // Publish implements `publish universe` (sparse-checkout only).
@@ -216,7 +215,7 @@ func Publish(packageDir string, dryRun bool) error {
 		case 0:
 			return fmt.Errorf("package version `%s` (current) is already submitted in PR #%d", v, pr.Number)
 		default:
-			fmt.Fprintf(os.Stderr, "WARN: package version `%s` (older) is already submitted in PR #%d\n", v, pr.Number)
+			warnf("package version `%s` (older) is already submitted in PR #%d", v, pr.Number)
 		}
 	}
 

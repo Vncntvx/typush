@@ -21,12 +21,7 @@ func Metadata(dir, field string, asJSON bool) error {
 
 	if field == "" {
 		if asJSON {
-			data, err := json.MarshalIndent(m, "", "  ")
-			if err != nil {
-				return fmt.Errorf("failed to encode metadata as JSON: %w", err)
-			}
-			fmt.Println(string(data))
-			return nil
+			return writeJSON(m)
 		}
 
 		// Formatted text overview

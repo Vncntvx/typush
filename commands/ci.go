@@ -1,9 +1,7 @@
 package commands
 
 import (
-	"bytes"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -151,12 +149,7 @@ func Plan(dir string, only []string) error {
 			},
 		},
 	}
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(output); err != nil {
-		return err
-	}
-	fmt.Print(buf.String())
-	return nil
+	// CI consumes this on stdout; it goes through the shared encoder so its shape
+	// cannot drift from the other JSON output.
+	return writeJSON(output)
 }

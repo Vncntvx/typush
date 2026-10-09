@@ -80,11 +80,22 @@ esac
 				targetDir,
 				"Dry run: entries to install",
 				"  src/extra.typ\n",
-				"Dry run: download preview finished, nothing installed",
+				"Dry run: installation skipped, no files written",
 			} {
 				if !strings.Contains(stderr, want) {
 					t.Errorf("stderr missing %q, got:\n%s", want, stderr)
 				}
+			}
+			// One counted item block and at most one summary line for the whole
+			// command: download's install step must not add a second summary.
+			summaries := 0
+			for _, line := range strings.Split(stderr, "\n") {
+				if strings.HasPrefix(line, "Dry run: ") && !strings.HasSuffix(line, ":") {
+					summaries++
+				}
+			}
+			if summaries != 1 {
+				t.Errorf("expected exactly one dry-run summary line, got %d:\n%s", summaries, stderr)
 			}
 			if tc.existing {
 				data, err := os.ReadFile(marker)

@@ -1,4 +1,5 @@
-// Package manifest author validation. Port of typst/packages bundler/src/author.rs.
+// Author validation. Port of typst/packages bundler/src/author.rs.
+
 package manifest
 
 import (

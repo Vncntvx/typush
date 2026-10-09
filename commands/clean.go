@@ -15,16 +15,11 @@ func CleanOne(name string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
-	return cleanOneAt(base, name, dryRun)
-}
-
-// cleanOneAt cleans one package inside an already resolved data dir.
-func cleanOneAt(base, name string, dryRun bool) error {
 	pkgDir := filepath.Join(base, "preview", name)
 	st, err := os.Lstat(pkgDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "WARN: package `%s` not found in local data dir, skipping\n", name)
+			warnf("package `%s` not found in local data dir, skipping", name)
 			return nil
 		}
 		return err
@@ -49,11 +44,11 @@ func CleanAll(dryRun bool) error {
 	if err != nil {
 		return err
 	}
-	preview := filepath.Join(base, "preview")
-	if st, err := os.Stat(preview); err != nil || !st.IsDir() {
+	previewDir := filepath.Join(base, "preview")
+	if st, err := os.Stat(previewDir); err != nil || !st.IsDir() {
 		return fmt.Errorf("no packages found")
 	}
-	entries, err := os.ReadDir(preview)
+	entries, err := os.ReadDir(previewDir)
 	if err != nil {
 		return err
 	}
@@ -62,7 +57,7 @@ func CleanAll(dryRun bool) error {
 		if !e.IsDir() {
 			continue
 		}
-		count, err := cleanSymlinks(filepath.Join(preview, e.Name()), e.Name(), dryRun)
+		count, err := cleanSymlinks(filepath.Join(previewDir, e.Name()), e.Name(), dryRun)
 		if err != nil {
 			return err
 		}
@@ -92,14 +87,11 @@ func cleanSymlinks(pkgDir, name string, dryRun bool) (int, error) {
 	var wouldRemove []string
 	count := 0
 	for _, e := range entries {
-		full := filepath.Join(pkgDir, e.Name())
-		fi, err := os.Lstat(full)
-		if err != nil {
-			return count, err
-		}
-		if fi.Mode()&os.ModeSymlink == 0 {
+		// ReadDir already reports the symlink bit, so no Lstat is needed here.
+		if e.Type()&os.ModeSymlink == 0 {
 			continue
 		}
+		full := filepath.Join(pkgDir, e.Name())
 		target, err := filepath.EvalSymlinks(full)
 		if err != nil {
 			// A broken symlink is still a dev link, so it still goes away.
@@ -108,7 +100,7 @@ func cleanSymlinks(pkgDir, name string, dryRun bool) (int, error) {
 				count++
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "WARN: symlink `%s` is broken, removing\n", full)
+			warnf("symlink `%s` is broken, removing", full)
 			_ = os.Remove(full)
 			count++
 			continue
@@ -125,7 +117,7 @@ func cleanSymlinks(pkgDir, name string, dryRun bool) (int, error) {
 			fmt.Fprintf(os.Stderr, "Removed symlink of version `%s`\n", e.Name())
 			count++
 		} else {
-			fmt.Fprintf(os.Stderr, "WARN: symlink `%s` is not a directory, skipping\n", full)
+			warnf("symlink `%s` is not a directory, skipping", full)
 		}
 	}
 	if dryRun && count > 0 {

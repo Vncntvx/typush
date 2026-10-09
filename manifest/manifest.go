@@ -1,3 +1,6 @@
+// Package manifest parses and writes typst.toml and applies the Typst
+// Universe validation rules: kebab-case naming, semantic versions, SPDX
+// licenses, author format, categories, disciplines and template thumbnails.
 package manifest
 
 import (
@@ -109,6 +112,16 @@ func IsKebabName(s string) bool {
 		return false
 	}
 	return true
+}
+
+// ValidateKebabName rejects a name Typst Universe would not accept. Typst itself
+// allows more permissive names for local packages, so this rule is applied only
+// where Universe applies: submissions, and lookups against it.
+func ValidateKebabName(name string) error {
+	if !IsKebabName(name) {
+		return fmt.Errorf("please use kebab-case for package names (got %q)", name)
+	}
+	return nil
 }
 
 func ValidateVersion(v string) error {
@@ -274,7 +287,7 @@ func (m *Manifest) Validate() error {
 
 // ValidateUniverse checks the manifest-only Universe submission rules,
 // mirroring typst/packages bundler parse_manifest. Filesystem checks
-// (entrypoint/README/thumbnail existence, excludes) live in checkpkg.
+// (entrypoint/README/thumbnail existence, excludes) live in package checker.
 func (m *Manifest) ValidateUniverse() error {
 	if len(m.undecoded) > 0 {
 		return fmt.Errorf("unknown fields: %v", m.undecoded)
@@ -282,8 +295,8 @@ func (m *Manifest) ValidateUniverse() error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
-	if !IsKebabName(m.Package.Name) {
-		return fmt.Errorf("please use kebab-case for package names (got %q)", m.Package.Name)
+	if err := ValidateKebabName(m.Package.Name); err != nil {
+		return err
 	}
 	for _, a := range m.Package.Authors {
 		if err := ValidateAuthor(a); err != nil {

@@ -1,6 +1,9 @@
 package commands_test
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -73,9 +76,9 @@ func TestExclude_DryRun(t *testing.T) {
 func TestExclude_DuplicatePatternIsNoOp(t *testing.T) {
 	dir := t.TempDir()
 	writeTestPackage(t, dir)
-	before, err := manifest.Read(dir)
+	before, err := os.ReadFile(filepath.Join(dir, "typst.toml"))
 	if err != nil {
-		t.Fatalf("failed to read manifest: %v", err)
+		t.Fatalf("failed to read typst.toml: %v", err)
 	}
 
 	stderr, err := captureStderr(t, func() error {
@@ -98,12 +101,12 @@ func TestExclude_DuplicatePatternIsNoOp(t *testing.T) {
 		t.Errorf("expected zero count on stdout, got: %s", out)
 	}
 
-	after, err := manifest.Read(dir)
+	after, err := os.ReadFile(filepath.Join(dir, "typst.toml"))
 	if err != nil {
-		t.Fatalf("failed to read manifest: %v", err)
+		t.Fatalf("failed to read typst.toml: %v", err)
 	}
-	if len(after.Package.Exclude) != len(before.Package.Exclude) {
-		t.Errorf("exclude list changed on a no-op add: %v -> %v", before.Package.Exclude, after.Package.Exclude)
+	if !bytes.Equal(before, after) {
+		t.Errorf("typst.toml must stay byte-identical on a no-op add:\nbefore: %s\nafter:  %s", before, after)
 	}
 }
 

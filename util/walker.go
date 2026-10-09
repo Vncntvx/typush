@@ -1,9 +1,11 @@
-// Package walker lists files for publish/install.
+// Package util supports the CLI: gitignore-shaped file walking for
+// publish/install, Typst data-dir resolution, Universe index access, and
+// stdin prompts.
 //
-// Semantics (compatible with the Rust original):
+// Walker semantics (compatible with the Rust original):
 //   - always skip .git/
-//   - skip dotfiles/dotdirs (hidden) except the root itself; .typstignore
-//     files are read for patterns but never returned.
+//   - skip dotfiles/dotdirs (hidden) except the root itself; .typstignore and
+//     .gitignore files are read for patterns but never returned.
 //   - respect .typstignore files (root + nested), gitignore-ish syntax.
 //   - install additionally filters manifest package.exclude globs matched
 //     against the slash-separated path relative to root.
@@ -33,13 +35,36 @@ func ListInstall(root string, excludes []string) ([]string, error) {
 	return walk(root, excludes)
 }
 
-// ValidateExcludePatterns reports invalid package.exclude globs before any
-// filesystem access, so callers that only need to validate a pattern set do
-// not have to pay for a directory walk.
+// ListTypSources returns absolute paths of regular .typ files under root,
+// respecting .typstignore and .gitignore rules.
+func ListTypSources(root string) ([]string, error) {
+	entries, err := walk(root, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, p := range entries {
+		if !strings.HasSuffix(p, ".typ") {
+			continue
+		}
+		// Skip directories that match "*.typ".
+		if fi, err := os.Stat(p); err != nil || fi.IsDir() {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// ValidateExcludePatterns validates package.exclude glob syntax.
 func ValidateExcludePatterns(excludes []string) error {
 	for _, p := range excludes {
 		if strings.TrimSpace(p) == "" {
 			return fmt.Errorf("invalid empty exclude pattern")
+		}
+		// Negation is rejected by manifest.ValidateUniverse.
+		if strings.HasPrefix(p, "!") {
+			return fmt.Errorf("exclude globs with '!' are not supported: %q", p)
 		}
 		if _, err := doublestar.Match(p, "x"); err != nil {
 			return fmt.Errorf("invalid exclude pattern %q: %w", p, err)

@@ -1,7 +1,8 @@
-// Package compile runs the local Typst compiler against a package:
-// a smoke import of the library and, for templates, the official
-// `typst init` + `compile` flow. Everything runs offline in isolated
-// temp HOME/XDG directories with the package symlinked into @preview.
+// Local Typst compiler checks: a smoke import of the library and, for
+// templates, the official `typst init` + `compile` flow. Everything runs
+// offline in isolated temp HOME/XDG directories with the package symlinked
+// into @preview.
+
 package checker
 
 import (

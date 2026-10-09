@@ -28,7 +28,7 @@ func Dev(packageDir string, checkUniverse bool) error {
 	if checkUniverse {
 		if err := WarnIfExists(m.Package.Name, m.Package.Version); err != nil {
 			// network failure shouldn't block local dev; warn only
-			fmt.Fprintf(os.Stderr, "WARN: universe check failed: %v\n", err)
+			warnf("universe check failed: %v", err)
 		}
 	}
 	base, err := util.TypstLocalDir()

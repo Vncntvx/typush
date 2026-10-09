@@ -2,6 +2,7 @@
 // Mirrors typst/packages bundler rules: every license in the expression must
 // be OSI-approved or an allowed CC license (any version of CC-BY, CC-BY-SA,
 // CC0). LicenseRef-* / referencer ids are rejected.
+
 package manifest
 
 import (
@@ -10,9 +11,8 @@ import (
 	"strings"
 )
 
-// osiApproved is a pragmatic allowlist of common OSI-approved SPDX ids.
-// Anything missing here but genuinely OSI-approved will be reported as an
-// error asking the user to file an issue — same spirit as the bundler.
+// osiApproved is an allowlist of common OSI-approved SPDX ids.
+// Anything missing here but genuinely OSI-approved is rejected as an error.
 var osiApproved = map[string]bool{
 	"0BSD": true, "AFL-3.0": true, "AGPL-3.0-only": true, "AGPL-3.0-or-later": true,
 	"Apache-2.0": true, "APL-1.0": true, "APSL-2.0": true, "Artistic-2.0": true,

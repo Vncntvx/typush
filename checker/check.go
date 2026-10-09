@@ -1,8 +1,9 @@
-// Package checkpkg validates a package directory.
+// Package checker validates a Typst package directory.
 //
 // Default mode mirrors the hard errors of the official typst/packages
-// bundler plus the network-free rules of typst/package-check. Use Local
-// for the compiler-minimal rules (name/version/entrypoint present).
+// bundler plus the network-free rules of typst/package-check. Use
+// Options.Local for the compiler-minimal rules (name/version/entrypoint
+// present), and Options.NoCompile to skip the Typst compiler checks.
 package checker
 
 import (
@@ -472,7 +473,8 @@ func checkFiles(dir string, m *manifest.Manifest, linked []string) []Diag {
 		}
 		bundled[relSlash] = true
 	}
-	// Excluded files still need size entries for the
+	// Files excluded from the walk still need size entries so Files() can
+	// warn about them.
 	for _, f := range all {
 		if excluded(m, f.RelSlash) {
 			excl[f.RelSlash] = true

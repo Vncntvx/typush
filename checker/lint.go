@@ -1,5 +1,6 @@
-// Package lint implements the network-free parts of typst/package-check:
-// README, files and import rules. Diagnostics mirror upstream codes.
+// Network-free parts of typst/package-check: README, files and import
+// rules. Diagnostics mirror upstream codes.
+
 package checker
 
 // Severity of a diagnostic.

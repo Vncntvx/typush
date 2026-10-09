@@ -27,7 +27,8 @@ func Bump(dir, target string, dryRun bool) error {
 	}
 	if target == "" {
 		if dryRun {
-			target = "patch"
+			// Reuse the value computed above instead of recomputing "patch".
+			target = nextPatch
 		} else {
 			prompt := "Enter new version (or patch/minor/major)"
 			v, err := util.PromptLine(prompt, nextPatch, false)

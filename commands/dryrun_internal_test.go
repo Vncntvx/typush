@@ -7,9 +7,7 @@ import (
 	"testing"
 )
 
-// streamCapture redirects both standard streams to temp files for the duration
-// of fn. It lives here, and not in helper_test.go, because that file belongs to
-// the external commands_test package and these helpers are unexported.
+// streamCapture redirects stdout and stderr to temporary files during fn.
 func streamCapture(t *testing.T, fn func()) (stdout, stderr string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -39,9 +37,10 @@ func streamCapture(t *testing.T, fn func()) (stdout, stderr string) {
 	return read(outPath), read(errPath)
 }
 
-func TestPreviewHelpersOnlyWriteToStderr(t *testing.T) {
+// Informational lines and preview framing must never reach stdout.
+func TestStderrHelpersOnlyWriteToStderr(t *testing.T) {
 	stdout, stderr := streamCapture(t, func() {
-		previewLine("Destination directory:\n  %s", "/tmp/demo")
+		infof("Destination directory:\n  %s", "/tmp/demo")
 		previewNote("would bump version from %s to %s", "0.1.0", "0.2.0")
 		previewItems("patterns to exclude", []string{"*.log", "docs/drafts"})
 	})
@@ -68,6 +67,18 @@ func TestPreviewItemsEmptyList(t *testing.T) {
 	}
 }
 
+// Multi-line items must be indented on every line.
+func TestPreviewItemsIndentsMultiLineItems(t *testing.T) {
+	_, stderr := streamCapture(t, func() {
+		previewItems("dependency updates", []string{"main.typ:3:\n- old\n+ new"})
+	})
+	want := "Dry run: dependency updates (1 item(s)):\n  main.typ:3:\n  - old\n  + new\n"
+	if stderr != want {
+		t.Errorf("multi-line preview item:\n got: %q\nwant: %q", stderr, want)
+	}
+}
+
+// Execute and Preview define the dry-run modes used across commands.
 func TestDryRunModeConstants(t *testing.T) {
 	if Execute != false {
 		t.Errorf("Execute = %v, want false", Execute)

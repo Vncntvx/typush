@@ -19,6 +19,10 @@ func TestValidateExcludePatterns(t *testing.T) {
 	if err := util.ValidateExcludePatterns([]string{"["}); err == nil {
 		t.Error("expected a malformed glob to be rejected")
 	}
+	// Negation is rejected by manifest.ValidateUniverse.
+	if err := util.ValidateExcludePatterns([]string{"!keep"}); err == nil {
+		t.Error("expected a negated pattern to be rejected")
+	}
 }
 
 func TestListInstallDirectoryExcludePatterns(t *testing.T) {

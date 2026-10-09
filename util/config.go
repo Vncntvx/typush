@@ -28,6 +28,22 @@ func TypstLocalDir() (string, error) {
 	return filepath.Join(base, defaultPackagesSubdir), nil
 }
 
+// TypstCacheDir returns the directory used to cache remote index files.
+func TypstCacheDir() (string, error) {
+	var base string
+	// Prefer XDG_CACHE_HOME, falling back to OS default.
+	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
+		base = xdg
+	} else {
+		var err error
+		base, err = os.UserCacheDir()
+		if err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(base, AppName), nil
+}
+
 func TempSubdir(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	return filepath.Join(os.TempDir(), fmt.Sprintf("%s-%x", AppName, sum[:8]))

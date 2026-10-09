@@ -40,16 +40,15 @@ func Download(repository, checkout, namespace string, dryRun bool) error {
 			return fmt.Errorf("failed to checkout: %w", err)
 		}
 	}
-	if dryRun {
-		if err := Install(tmp, namespace, dryRun); err != nil {
-			return err
-		}
-		previewNote("download preview finished, nothing installed")
-		return nil
+	if !dryRun {
+		fmt.Fprintln(os.Stderr, "Installing...")
 	}
-	fmt.Fprintln(os.Stderr, "Installing...")
 	if err := Install(tmp, namespace, dryRun); err != nil {
 		return err
+	}
+	if dryRun {
+		// Install already closed the preview with its own summary.
+		return nil
 	}
 	fmt.Fprintln(os.Stderr, "Done")
 	return nil
