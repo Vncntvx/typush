@@ -12,7 +12,7 @@ import (
 	"github.com/Vncntvx/typush/commands"
 )
 
-var version = "dev"
+var version = "0.2.0"
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
