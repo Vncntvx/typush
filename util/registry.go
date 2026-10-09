@@ -20,6 +20,33 @@ import (
 // It is a variable so tests can point the client at an httptest server.
 var UniverseIndexURL = "https://packages.typst.org/preview/index.json"
 
+// UniversePackageDownloadURL returns the archive download URL for a preview package.
+func UniversePackageDownloadURL(name, version string) string {
+	baseURL := strings.TrimSuffix(UniverseIndexURL, "/index.json")
+	return fmt.Sprintf("%s/%s-%s.tar.gz", baseURL, name, version)
+}
+
+// FetchPackageArchive downloads the .tar.gz archive for the requested package version.
+// The caller is responsible for closing the returned ReadCloser.
+func FetchPackageArchive(name, version string) (io.ReadCloser, error) {
+	downloadURL := UniversePackageDownloadURL(name, version)
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", AppName)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download package archive: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("failed to download package archive (HTTP %d)", resp.StatusCode)
+	}
+	return resp.Body, nil
+}
+
 const (
 	universeCacheTTL    = 15 * time.Minute
 	universeHTTPTimeout = 15 * time.Second

@@ -48,27 +48,31 @@ typush publish universe
 
 ```sh
 typush --help
-typush init [name]                                   # 交互式初始化 typst.toml、README.md、LICENSE 与入口文件
-typush bump [patch|minor|major|<ver>] [-n]           # 递增或指定版本号（支持 -n 模拟运行）
-typush check [--local] [--no-compile]                # 校验包规范与编译状态
-typush install <ns> [-n]                             # 安装到指定命名空间（支持 -n 模拟运行）
-typush download <repo> [-c ref] [-n ns] [--dry-run]  # 从 Git 仓库下载并安装包
-typush dev [--check]                                 # 链接到 @preview（优先通过官方 CDN 检查命名冲突）
-typush dev list                                      # 列出 @preview 中已有的开发软链接及路径
-typush clean [package] [-n]                          # 清理 @preview 中的开发软链接（支持 -n 模拟运行）
-typush search <query> [--limit 20] [--json]          # 搜索 Universe 包
-typush info <package>[:version] [--json]             # 查看 Universe 包元数据与版本历史
-typush outdated [path] [--json]                      # 检查 .typ 文件中的过时依赖
-typush update [package...] [-n] [--file path]        # 更新 .typ 中的依赖版本（支持 -n 模拟运行）
-typush metadata [field] [--json]                     # 查看包元数据（可提取单字段或输出 JSON）
-typush path [namespace]                              # 显示本地 Typst 包数据目录路径
-typush exclude <globs...> [-n]                       # 将指定文件添加到发布排除列表（支持 -n 模拟运行）
-typush login universe                                # 验证 GitHub CLI 认证状态
-typush publish universe [-n]                         # 校验并提交 PR 到 Universe（支持 -n 模拟运行）
-typush pr status [number|url]                        # 查看 PR 状态与审查意见（默认自动匹配当前包）
-typush pr checks [number|url] [-w]                   # 查看或等待 Universe 官方 CI 结果
-typush ci plan [--packages "a b"]                    # 扫描工作区并输出 CI matrix JSON
-typush ci generate [...] [-n]                        # 生成自动化发布工作流（支持 -n 预览）
+typush init [name]                                             # 交互式初始化 typst.toml、README.md、LICENSE 与入口文件
+typush bump [patch|minor|major|<ver>] [-i files] [-t tag] [-n] # 递增版本号（支持 -i 多文件同步与 -n 模拟运行）
+typush check [--local] [--no-compile]                          # 校验包规范与编译状态
+typush list [namespace] [-a] [-t] [--json]                     # 列出已安装包（-a 包含缓存，-t 树状层级）
+typush install <ns> [-n]                                       # 安装到指定命名空间（支持 -n 模拟运行）
+typush uninstall <target> [-y] [-n]                            # 卸载指定版本、整个包或命名空间
+typush clone <package> [dest] [-f] [-n]                        # 从 Universe 下载官方包源码并解压到本地
+typush download <repo> [-c ref] [-n ns] [--subdir dir] [...]  # 从 Git 仓库下载并安装包（支持指定子目录）
+typush dev [--check]                                           # 链接到 @preview（优先通过官方 CDN 检查命名冲突）
+typush dev list                                                # 列出 @preview 中已有的开发软链接及路径
+typush clean [package] [-n]                                    # 清理 @preview 中的开发软链接（支持 -n 模拟运行）
+typush search <query> [--limit 20] [--json]                    # 搜索 Universe 包
+typush info <package>[:version] [--json]                       # 查看 Universe 包元数据与版本历史
+typush outdated [path] [--json]                                # 检查 .typ 文件中的过时依赖
+typush update [package...] [-n] [--file path]                  # 更新 .typ 中的依赖版本（支持 -n 模拟运行）
+typush metadata [field] [--json]                               # 查看包元数据（可提取单字段或输出 JSON）
+typush path [namespace]                                        # 显示本地 Typst 包数据目录路径
+typush completion <bash|zsh|fish|powershell>                   # 生成 shell 自动补全脚本
+typush exclude <globs...> [-n]                                 # 将指定文件添加到发布排除列表（支持 -n 模拟运行）
+typush login universe                                          # 验证 GitHub CLI 认证状态
+typush publish universe [-n]                                   # 校验并提交 PR 到 Universe（支持 -n 模拟运行）
+typush pr status [number|url]                                  # 查看 PR 状态与审查意见（默认自动匹配当前包）
+typush pr checks [number|url] [-w]                             # 查看或等待 Universe 官方 CI 结果
+typush ci plan [--packages "a b"]                              # 扫描工作区并输出 CI matrix JSON
+typush ci generate [...] [-n]                                  # 生成自动化发布工作流（支持 -n 预览）
 ```
 
 `publish` 提交前先在本地跑一遍 Universe 校验，覆盖未知字段、作者格式、分类、SPDX 许可证、必要文件、模板缩略图与排除规则。

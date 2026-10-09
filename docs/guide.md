@@ -20,6 +20,9 @@ typush 的命令参考与使用说明。
 12. [排除发布文件 (exclude)](#12-排除发布文件-exclude)
 13. [包检索与信息查询 (search, info)](#13-包检索与信息查询-search-info)
 14. [依赖检查与更新 (outdated, update)](#14-依赖检查与更新-outdated-update)
+15. [已安装包管理 (list, uninstall)](#15-已安装包管理-list-uninstall)
+16. [Universe 官方包克隆 (clone)](#16-universe-官方包克隆-clone)
+17. [Shell 补全脚本 (completion)](#17-shell-补全脚本-completion)
 
 ---
 
@@ -122,17 +125,18 @@ typush check [--local] [--no-compile]
 ## 5. 版本递增 (bump)
 
 ```sh
-typush bump [patch|minor|major|<version>] [-n|--dry-run]
+typush bump [patch|minor|major|<version>] [-i files] [-t tag] [-n|--dry-run]
 ```
 
-递增或指定 `typst.toml` 中的 `package.version`。
+递增或指定 `typst.toml` 中的 `package.version`，并支持同步更新其它文件中的版本号。
 
 ### 执行逻辑
 
 1. 读取 `typst.toml` 中的当前版本。
 2. 计算新版本：支持 `patch`、`minor`、`major` 关键字或直接指定目标版本号。未提供参数时通过终端交互选择，默认推荐下一个 patch 版本。
 3. 防降级检查：目标版本必须高于当前版本。
-4. 写回 `typst.toml` 并校验格式。加上 `-n`（或 `--dry-run`）时仅预览版本变动结果，不修改文件；此时不进入交互，直接按下一个 patch 版本计算。
+4. 替换附加文件中的版本号：若指定了 `-i`（或 `--include`），会同步更新指定文件中的版本字符串。默认匹配 `@preview/<name>:<current_ver>` 格式；若同时指定了 `-t`（或 `--tag`），则匹配由指定标签包裹的内容，例如 `<version>0.1.0</version>` 或 `<!-- version -->0.1.0<!-- /version -->`。
+5. 写回 `typst.toml` 与各更新文件。加上 `-n`（或 `--dry-run`）时以 diff 形式预览所有文件中的变更行，不修改任何文件。
 
 ---
 
@@ -177,7 +181,7 @@ typush pr checks [number|url] [-w]
 
 ```sh
 typush install <namespace> [-n|--dry-run]
-typush download <repository> [-c ref] [-n namespace] [--dry-run]
+typush download <repository> [-c ref] [-n namespace] [--subdir dir] [--dry-run]
 ```
 
 ### 安装到本地命名空间
@@ -196,7 +200,12 @@ typush install local
 typush download https://github.com/user/pkg -n local
 ```
 
-从远程 Git 仓库下载包并安装到指定命名空间。可用 `-c` 指定分支、tag 或 commit。加上 `--dry-run` 可在临时拉取后仅做安装预览。
+从远程 Git 仓库下载包并安装到指定命名空间。
+
+- `-c <ref>`：指定分支、tag 或 commit。
+- `-n <namespace>`：安装到的目标命名空间（默认 `local`）。
+- `--subdir <dir>`：仅安装仓库中的指定子目录（适用于多包 Monorepo 仓库）。
+- `--dry-run`：克隆到临时目录后仅预览待复制的文件列表，不写入本地包目录。
 
 ---
 
@@ -393,4 +402,134 @@ typush update cetz fletcher
 
 # 仅更新单个文件内的依赖
 typush update -f main.typ
+```
+
+---
+
+## 15. 已安装包管理 (list, uninstall)
+
+查看与清理本地 Typst 数据目录中的包。
+
+### 列出已安装包 (list)
+
+```sh
+typush list [namespace] [-a|--all] [-t|--tree] [--json]
+```
+
+扫描本地数据目录中的包，按命名空间与包名字典序升序、版本号语义化降序展示。
+
+- `[namespace]`：仅查看指定命名空间（如 `local` 或 `preview`）。
+- `-a, --all`：同时包含 Typst 下载缓存中的包（即编译时自动拉取的 `@preview` 缓存）。
+- `-t, --tree`：以树状层级展示各命名空间下的包名与版本，并标注来源（已安装副本、软链接或缓存）。
+- `--json`：以 JSON 格式输出已安装包的结构化数据。
+
+```sh
+# 列出本地安装的全部包
+typush list
+
+# 包含官方下载缓存并以树状展示
+typush list -a -t
+
+# 仅查看 @local 命名空间
+typush list local
+```
+
+### 卸载已安装包 (uninstall)
+
+```sh
+typush uninstall <target> [-y|--force] [-n|--dry-run]
+```
+
+从本地 Typst 数据目录中删除指定的包或命名空间。若删除后父目录为空，会自动级联清理空目录。
+
+目标语法支持：
+- `@ns/pkg:ver`：删除指定命名空间下的特定版本。
+- `@ns/pkg`：删除指定包的所有版本。
+- `@ns`：删除整个命名空间。
+- `pkg:ver`：省略命名空间时默认为 `@local` 下的指定版本。
+- `pkg`：删除 `@local` 下该包的所有版本。
+
+参数选项：
+- `-y, --force`：跳过交互确认提示。
+- `-n, --dry-run`：仅预览待删除的目标路径与说明，不删除任何文件。
+
+```sh
+# 卸载指定版本
+typush uninstall @local/my-lib:0.1.0
+
+# 卸载整个本地包（所有版本）
+typush uninstall my-lib
+
+# 清理整个自定义命名空间并跳过确认
+typush uninstall @custom -y
+```
+
+---
+
+## 16. Universe 官方包克隆 (clone)
+
+```sh
+typush clone <package> [destination] [-f|--force] [-n|--dry-run]
+```
+
+直接从 Typst Universe 官方 CDN（`packages.typst.org`）下载包的 `.tar.gz` 源码压缩包并解压到本地目录。解压时会对所有文件路径与软链接目标做安全检查，拒绝解压超出目标目录的文件。
+
+- `<package>`：包规范。支持 `@preview/<name>:<version>`、`<name>:<version>` 或 `<name>`（省略版本时自动通过 CDN 索引解析最新版本）。
+- `[destination]`：目标解压目录。省略时默认解压到当前目录下的 `<name>` 文件夹。
+- `-f, --force`：当目标目录已存在且非空时，跳过覆盖确认提示。
+- `-n, --dry-run`：预览将要克隆的版本与目标解压路径，不发起网络下载。
+
+```sh
+# 下载最新版本的 cetz 源码到当前目录下的 ./cetz
+typush clone cetz
+
+# 下载指定版本的 fletcher 到 ./my-fletcher
+typush clone fletcher:0.5.0 ./my-fletcher
+```
+
+---
+
+## 17. Shell 补全脚本 (completion)
+
+```sh
+typush completion <bash|zsh|fish|powershell>
+```
+
+生成对应 Shell 的自动补全脚本到标准输出。
+
+### 各 Shell 加载方式
+
+#### Bash
+
+```sh
+# 当前会话临时生效
+source <(typush completion bash)
+
+# 写入系统补全目录（持久生效）
+typush completion bash > /etc/bash_completion.d/typush
+```
+
+#### Zsh
+
+```sh
+# 写入 fpath 所在目录
+typush completion zsh > "${fpath[1]}/_typush"
+# 重启终端或重新加载补全
+autoload -U compinit && compinit
+```
+
+#### Fish
+
+```sh
+# 当前会话临时生效
+typush completion fish | source
+
+# 持久保存
+typush completion fish > ~/.config/fish/completions/typush.fish
+```
+
+#### PowerShell
+
+```powershell
+typush completion powershell | Out-String | Invoke-Expression
 ```

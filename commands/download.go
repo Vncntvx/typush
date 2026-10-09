@@ -4,23 +4,35 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/Vncntvx/typush/util"
 )
 
+// DownloadOptions configures the download command.
+type DownloadOptions struct {
+	Repository string
+	Checkout   string
+	Namespace  string
+	Subdir     string
+	DryRun     bool
+}
+
 // Download clones repo (+ optional checkout ref) into a temp dir then installs.
+// If subdir is non-empty, it installs only that subdirectory of the repository.
 // If dryRun is true, it previews the installation without copying files to the local packages directory.
-func Download(repository, checkout, namespace string, dryRun bool) error {
-	tmp := util.TempSubdir(repository)
+func Download(opt DownloadOptions) error {
+	tmp := util.TempSubdir(opt.Repository)
 	_ = os.RemoveAll(tmp)
 	if err := os.MkdirAll(tmp, 0o755); err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmp)
 
-	fmt.Fprintln(os.Stderr, "Cloning the repository...")
+	infof("Cloning the repository...")
 	// clone into tmp directly (tmp is empty)
-	clone := exec.Command("git", "clone", repository, tmp)
+	clone := exec.Command("git", "clone", opt.Repository, tmp)
 	clone.Stdin = os.Stdin
 	clone.Stdout = os.Stderr
 	clone.Stderr = os.Stderr
@@ -29,9 +41,9 @@ func Download(repository, checkout, namespace string, dryRun bool) error {
 	if err := clone.Run(); err != nil {
 		return fmt.Errorf("failed to clone: %w", err)
 	}
-	if checkout != "" {
-		fmt.Fprintf(os.Stderr, "Checking out to %s...\n", checkout)
-		co := exec.Command("git", "checkout", checkout)
+	if opt.Checkout != "" {
+		infof("Checking out to %s...", opt.Checkout)
+		co := exec.Command("git", "checkout", opt.Checkout)
 		co.Dir = tmp
 		co.Stdin = os.Stdin
 		co.Stdout = os.Stderr
@@ -40,16 +52,34 @@ func Download(repository, checkout, namespace string, dryRun bool) error {
 			return fmt.Errorf("failed to checkout: %w", err)
 		}
 	}
-	if !dryRun {
-		fmt.Fprintln(os.Stderr, "Installing...")
+
+	installSrc := tmp
+	if opt.Subdir != "" {
+		cleanSub := filepath.Clean(opt.Subdir)
+		if filepath.IsAbs(cleanSub) || strings.HasPrefix(cleanSub, "..") {
+			return fmt.Errorf("invalid subdir %q: path traversal not allowed", opt.Subdir)
+		}
+		installSrc = filepath.Join(tmp, cleanSub)
+		if fi, err := os.Stat(installSrc); err != nil || !fi.IsDir() {
+			return fmt.Errorf("subdirectory %q does not exist in repository", opt.Subdir)
+		}
 	}
-	if err := Install(tmp, namespace, dryRun); err != nil {
+
+	ns := opt.Namespace
+	if ns == "" {
+		ns = "local"
+	}
+
+	if !opt.DryRun {
+		infof("Installing...")
+	}
+	if err := Install(installSrc, ns, opt.DryRun); err != nil {
 		return err
 	}
-	if dryRun {
+	if opt.DryRun {
 		// Install already closed the preview with its own summary.
 		return nil
 	}
-	fmt.Fprintln(os.Stderr, "Done")
+	infof("Done")
 	return nil
 }

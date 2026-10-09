@@ -68,7 +68,12 @@ esac
 			// A unique repository ID isolates Download's deterministic temp path.
 			repository := filepath.Join(t.TempDir(), "repository")
 			stdout, stderr, err := captureStdio(t, func() error {
-				return commands.Download(repository, tc.checkout, "local", commands.Preview)
+				return commands.Download(commands.DownloadOptions{
+					Repository: repository,
+					Checkout:   tc.checkout,
+					Namespace:  "local",
+					DryRun:     commands.Preview,
+				})
 			})
 			if err != nil {
 				t.Fatalf("Download preview failed: %v", err)
@@ -120,5 +125,59 @@ esac
 				t.Errorf("git calls = %q, want %q", log, wantLog)
 			}
 		})
+	}
+}
+
+func TestDownload_Subdir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("git command stub requires /bin/sh")
+	}
+
+	// Create fixture where package lives in packages/my-pkg/
+	fixtureRoot := t.TempDir()
+	pkgDir := filepath.Join(fixtureRoot, "packages", "my-pkg")
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestPackage(t, pkgDir)
+	if err := os.WriteFile(filepath.Join(pkgDir, "lib.typ"), []byte("#let x = 1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	binDir := t.TempDir()
+	gitStub := `#!/bin/sh
+set -eu
+case "$1" in
+  clone)
+    mkdir -p "$3"
+    cp -R "$TYPUSH_TEST_PACKAGE/." "$3/"
+    ;;
+  *) exit 0 ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(gitStub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("TYPUSH_TEST_PACKAGE", fixtureRoot)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	repo := filepath.Join(t.TempDir(), "monorepo")
+	stdout, stderr, err := captureStdio(t, func() error {
+		return commands.Download(commands.DownloadOptions{
+			Repository: repo,
+			Namespace:  "local",
+			Subdir:     "packages/my-pkg",
+			DryRun:     commands.Preview,
+		})
+	})
+	if err != nil {
+		t.Fatalf("Download with subdir failed: %v", err)
+	}
+	if stdout != "" {
+		t.Errorf("expected empty stdout, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "demo-pkg") {
+		t.Errorf("expected demo-pkg in stderr preview, got:\n%s", stderr)
 	}
 }

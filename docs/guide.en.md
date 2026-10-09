@@ -20,6 +20,9 @@ Command reference and workflow documentation.
 12. [Excluding Published Files (exclude)](#12-excluding-published-files-exclude)
 13. [Package Search and Details (search, info)](#13-package-search-and-details-search-info)
 14. [Dependency Checking and Updating (outdated, update)](#14-dependency-checking-and-updating-outdated-update)
+15. [Installed Package Management (list, uninstall)](#15-installed-package-management-list-uninstall)
+16. [Cloning Package Source (clone)](#16-cloning-package-source-clone)
+17. [Shell Completions (completion)](#17-shell-completions-completion)
 
 ---
 
@@ -122,17 +125,18 @@ Runs the validation rules from the official bundler and package-check offline.
 ## 5. Version Bumping (bump)
 
 ```sh
-typush bump [patch|minor|major|<version>] [-n|--dry-run]
+typush bump [patch|minor|major|<version>] [-i files] [-t tag] [-n|--dry-run]
 ```
 
-Increments or sets `package.version` in `typst.toml`.
+Increments or sets `package.version` in `typst.toml`, with optional multi-file version synchronization.
 
 ### Workflow
 
 1. Reads current version from `typst.toml`.
 2. Computes target version using keywords (`patch`, `minor`, `major`) or an explicit version string. Prompts interactively if omitted, defaulting to the next patch version.
 3. Verifies that the target version is strictly greater than the current version.
-4. Writes updated version to `typst.toml`. Pass `-n` (or `--dry-run`) to preview the bump without modifying the file; a preview never prompts and assumes the next patch version.
+4. Updates version references in included files: when `-i` (or `--include`) is specified, updates version strings in the given files. By default it replaces `@preview/<name>:<current_ver>`. When `-t` (or `--tag`) is also set, it replaces versions wrapped in `<tag>` elements (e.g. `<version>0.1.0</version>` or `<!-- version -->0.1.0<!-- /version -->`).
+5. Writes the updated manifest and included files. Pass `-n` (or `--dry-run`) to preview diffs across all files without modifying them.
 
 ---
 
@@ -177,7 +181,7 @@ Inspects pull requests and CI check runs in your terminal. If the PR number or U
 
 ```sh
 typush install <namespace> [-n|--dry-run]
-typush download <repository> [-c ref] [-n namespace] [--dry-run]
+typush download <repository> [-c ref] [-n namespace] [--subdir dir] [--dry-run]
 ```
 
 ### Install to Local Namespace
@@ -196,7 +200,12 @@ A preview never reads stdin: the `@` prefix normalization, the `preview` namespa
 typush download https://github.com/user/pkg -n local
 ```
 
-Downloads a package from a Git repository into a specified namespace. Use `-c` to check out a specific tag, branch, or commit. Use `--dry-run` to inspect files after downloading without installing.
+Clones a repository into a temporary directory and installs it into the target namespace.
+
+- `-c <ref>`: Checks out a specific tag, branch, or commit.
+- `-n <namespace>`: Target namespace (defaults to `local`).
+- `--subdir <dir>`: Installs only the specified subdirectory of the repository (useful for monorepos).
+- `--dry-run`: Previews the installation file list without copying files into the local packages directory.
 
 ---
 
@@ -393,4 +402,134 @@ typush update cetz fletcher
 
 # Update dependencies in one file only
 typush update -f main.typ
+```
+
+---
+
+## 15. Installed Package Management (list, uninstall)
+
+Inspect and remove packages in your local Typst data directories.
+
+### Listing installed packages (list)
+
+```sh
+typush list [namespace] [-a|--all] [-t|--tree] [--json]
+```
+
+Scans the local data directory and displays packages sorted by namespace and name in ascending order, and version in descending order (newest first).
+
+- `[namespace]`: Limits output to a specific namespace (e.g. `local` or `preview`).
+- `-a, --all`: Also includes downloaded cache packages (e.g. `@preview` packages downloaded during Typst compilation).
+- `-t, --tree`: Displays packages in an ASCII tree hierarchy with source badges (installed copy, dev symlink, or cache).
+- `--json`: Outputs structured package data in JSON format.
+
+```sh
+# List all locally installed packages
+typush list
+
+# Show full tree including download cache
+typush list -a -t
+
+# Filter by the @local namespace
+typush list local
+```
+
+### Removing installed packages (uninstall)
+
+```sh
+typush uninstall <target> [-y|--force] [-n|--dry-run]
+```
+
+Removes packages from your local Typst data directory. When removing a version leaves the package directory empty, or removing a package leaves the namespace directory empty, the empty parent directories are automatically removed.
+
+Target syntax:
+- `@ns/pkg:ver`: Removes a specific version in a namespace.
+- `@ns/pkg`: Removes all versions of a package in a namespace.
+- `@ns`: Removes an entire namespace.
+- `pkg:ver`: Removes a specific version from `@local`.
+- `pkg`: Removes all versions of a package from `@local`.
+
+Options:
+- `-y, --force`: Skips interactive confirmation prompts.
+- `-n, --dry-run`: Previews the target directory path and description without removing files.
+
+```sh
+# Remove a specific version
+typush uninstall @local/my-lib:0.1.0
+
+# Remove all versions of a local package
+typush uninstall my-lib
+
+# Remove an entire custom namespace without prompt
+typush uninstall @custom -y
+```
+
+---
+
+## 16. Cloning Package Source (clone)
+
+```sh
+typush clone <package> [destination] [-f|--force] [-n|--dry-run]
+```
+
+Downloads a package `.tar.gz` archive directly from the Typst Universe CDN (`packages.typst.org`) and extracts it locally. Path and symlink targets are validated during extraction to reject any directory traversal outside the target directory.
+
+- `<package>`: Package specifier. Accepts `@preview/<name>:<version>`, `<name>:<version>`, or `<name>` (resolves latest version via the CDN index).
+- `[destination]`: Destination directory. Defaults to `./<name>` if omitted.
+- `-f, --force`: Overwrites existing non-empty destination directories without prompt.
+- `-n, --dry-run`: Previews the version to clone and destination directory without downloading.
+
+```sh
+# Clone latest version of cetz into ./cetz
+typush clone cetz
+
+# Clone a specific version of fletcher into ./my-fletcher
+typush clone fletcher:0.5.0 ./my-fletcher
+```
+
+---
+
+## 17. Shell Completions (completion)
+
+```sh
+typush completion <bash|zsh|fish|powershell>
+```
+
+Generates shell completion scripts for typush to standard output.
+
+### Shell Setup
+
+#### Bash
+
+```sh
+# Current shell session:
+source <(typush completion bash)
+
+# Persist to system completion directory:
+typush completion bash > /etc/bash_completion.d/typush
+```
+
+#### Zsh
+
+```sh
+# Write to a directory in your fpath:
+typush completion zsh > "${fpath[1]}/_typush"
+# Reload completions:
+autoload -U compinit && compinit
+```
+
+#### Fish
+
+```sh
+# Current shell session:
+typush completion fish | source
+
+# Persist:
+typush completion fish > ~/.config/fish/completions/typush.fish
+```
+
+#### PowerShell
+
+```powershell
+typush completion powershell | Out-String | Invoke-Expression
 ```

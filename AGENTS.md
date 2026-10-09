@@ -148,7 +148,7 @@ Common mappings:
 ## Docs and release
 
 - `README.md` (中文) and `README.en.md` (English) mirror each other; edit both.
-- `typush bump` updates `package.version` in `typst.toml` only.
+- `typush bump` updates `package.version` in `typst.toml` (and any files matched via `--include`).
 - `commands/release-typst.yml` is `go:embed`ed and written into *user* package repos by
   `ci generate`. Keep its `<<source>>` / `<<destination>>` / `<<push-to-fork>>` placeholders
   working in both quoted and bare forms.

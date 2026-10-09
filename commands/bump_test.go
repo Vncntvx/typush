@@ -41,7 +41,11 @@ Import via:
 		t.Fatalf("failed to write README.md: %v", err)
 	}
 
-	if err := commands.Bump(dir, "patch", commands.Execute); err != nil {
+	if err := commands.Bump(commands.BumpOptions{
+		Dir:    dir,
+		Target: "patch",
+		DryRun: commands.Execute,
+	}); err != nil {
 		t.Fatalf("Bump failed: %v", err)
 	}
 
@@ -67,12 +71,89 @@ Import via:
 	}
 }
 
+func TestBump_WithInclude(t *testing.T) {
+	dir := writeBumpPackage(t)
+
+	readmeContent := `# my-pkg
+
+#import "@preview/my-pkg:0.1.0": *
+`
+	readmePath := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(readmePath, []byte(readmeContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := commands.Bump(commands.BumpOptions{
+		Dir:     dir,
+		Target:  "minor",
+		Include: []string{"README.md"},
+		DryRun:  commands.Execute,
+	}); err != nil {
+		t.Fatalf("Bump with include failed: %v", err)
+	}
+
+	// typst.toml -> 0.2.0
+	m, err := manifest.Read(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Package.Version != "0.2.0" {
+		t.Errorf("expected 0.2.0, got %s", m.Package.Version)
+	}
+
+	// README.md -> @preview/my-pkg:0.2.0
+	readmeAfter, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(readmeAfter), "@preview/my-pkg:0.2.0") {
+		t.Errorf("expected updated version 0.2.0 in README, got:\n%s", string(readmeAfter))
+	}
+}
+
+func TestBump_WithTag(t *testing.T) {
+	dir := writeBumpPackage(t)
+
+	docContent := `Current version: <version>0.1.0</version>
+Other content 0.1.0 should stay untouched.
+`
+	docPath := filepath.Join(dir, "doc.txt")
+	if err := os.WriteFile(docPath, []byte(docContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := commands.Bump(commands.BumpOptions{
+		Dir:     dir,
+		Target:  "major",
+		Include: []string{"doc.txt"},
+		Tag:     "version",
+		DryRun:  commands.Execute,
+	}); err != nil {
+		t.Fatalf("Bump with tag failed: %v", err)
+	}
+
+	docAfter, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(docAfter), "<version>1.0.0</version>") {
+		t.Errorf("expected tagged version updated to 1.0.0, got:\n%s", string(docAfter))
+	}
+	if !strings.Contains(string(docAfter), "Other content 0.1.0 should stay untouched") {
+		t.Errorf("expected untagged 0.1.0 to stay untouched, got:\n%s", string(docAfter))
+	}
+}
+
 func TestBump_DryRun(t *testing.T) {
 	dir := writeBumpPackage(t)
 
 	// 1. Dry run with explicit target
 	stderr, err := captureStderr(t, func() error {
-		return commands.Bump(dir, "minor", commands.Preview)
+		return commands.Bump(commands.BumpOptions{
+			Dir:    dir,
+			Target: "minor",
+			DryRun: commands.Preview,
+		})
 	})
 	if err != nil {
 		t.Fatalf("Bump dry-run failed: %v", err)
@@ -92,7 +173,10 @@ func TestBump_DryRun(t *testing.T) {
 
 	// 2. Dry run with default (empty target defaults to patch)
 	stderr, err = captureStderr(t, func() error {
-		return commands.Bump(dir, "", commands.Preview)
+		return commands.Bump(commands.BumpOptions{
+			Dir:    dir,
+			DryRun: commands.Preview,
+		})
 	})
 	if err != nil {
 		t.Fatalf("Bump dry-run without target failed: %v", err)

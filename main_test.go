@@ -6,7 +6,10 @@ import (
 
 func TestNewRootCommands(t *testing.T) {
 	root := NewRoot()
-	expected := []string{"search", "info", "outdated", "update", "check", "clean", "dev", "download", "bump"}
+	expected := []string{
+		"search", "info", "outdated", "update", "check", "clean", "dev",
+		"download", "bump", "list", "uninstall", "clone", "completion",
+	}
 	cmdMap := make(map[string]bool)
 	for _, c := range root.Commands() {
 		cmdMap[c.Name()] = true

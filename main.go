@@ -33,11 +33,14 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(
 		newCheckCmd(),
 		newCleanCmd(),
+		newCloneCmd(),
+		newCompletionCmd(),
 		newDevCmd(),
 		newDownloadCmd(),
 		newExcludeCmd(),
 		newInitCmd(),
 		newInstallCmd(),
+		newListCmd(),
 		newLoginCmd(),
 		newPublishCmd(),
 		newPRCmd(),
@@ -47,6 +50,7 @@ func NewRoot() *cobra.Command {
 		newSearchCmd(),
 		newInfoCmd(),
 		newOutdatedCmd(),
+		newUninstallCmd(),
 		newUpdateCmd(),
 		newCICmd(),
 		// Back-compat aliases for the Rust CLI (breaking allowed, but keep them working):
@@ -141,8 +145,8 @@ func newDevCmd() *cobra.Command {
 
 func newDownloadCmd() *cobra.Command {
 	var (
-		checkout, namespace string
-		dryRun              bool
+		checkout, namespace, subdir string
+		dryRun                      bool
 	)
 	c := &cobra.Command{
 		Use:   "download <repository>",
@@ -150,11 +154,18 @@ func newDownloadCmd() *cobra.Command {
 		Long:  "Download a package from a git repository into a local namespace (defaults to @local).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commands.Download(args[0], checkout, namespace, dryRun)
+			return commands.Download(commands.DownloadOptions{
+				Repository: args[0],
+				Checkout:   checkout,
+				Namespace:  namespace,
+				Subdir:     subdir,
+				DryRun:     dryRun,
+			})
 		},
 	}
 	c.Flags().StringVarP(&checkout, "checkout", "c", "", "Checkout a specific tag, commit, or branch")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "local", "Namespace to install the package to (without the @ prefix)")
+	c.Flags().StringVar(&subdir, "subdir", "", "Subdirectory inside the repository to install")
 	registerDryRunNoShorthand(c, &dryRun, "Clone and preview the installation without copying files into the namespace")
 	return c
 }
@@ -362,21 +373,24 @@ func newPRCmd() *cobra.Command {
 }
 
 func newBumpCmd() *cobra.Command {
-	var dryRun bool
+	var opt commands.BumpOptions
 	c := &cobra.Command{
 		Use:   "bump [patch|minor|major|<version>]",
 		Short: "Bump package version in typst.toml",
-		Long:  "Bump package version in typst.toml (supports patch, minor, major, or explicit version).",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Bump package version in typst.toml (supports patch, minor, major, or explicit version).
+Use --include to update version strings in additional files like README.md.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target := ""
+			opt.Dir = cwd()
 			if len(args) == 1 {
-				target = args[0]
+				opt.Target = args[0]
 			}
-			return commands.Bump(cwd(), target, dryRun)
+			return commands.Bump(opt)
 		},
 	}
-	registerDryRun(c, &dryRun, "Preview the version bump without updating typst.toml")
+	registerDryRun(c, &opt.DryRun, "Preview the version bump without updating files")
+	c.Flags().StringSliceVarP(&opt.Include, "include", "i", nil, "Additional files to update version in")
+	c.Flags().StringVarP(&opt.Tag, "tag", "t", "", "HTML/XML tag enclosing the version to replace (e.g. 'version')")
 	return c
 }
 
@@ -487,4 +501,127 @@ func newUpdateCmd() *cobra.Command {
 	c.Flags().StringVarP(&opt.File, "file", "f", "", "Update dependencies only within the specified .typ file")
 	c.Flags().BoolVar(&opt.Refresh, "refresh", false, "Refresh the local Universe index cache")
 	return c
+}
+
+func newListCmd() *cobra.Command {
+	var opt commands.ListOptions
+	c := &cobra.Command{
+		Use:   "list [namespace]",
+		Short: "List installed packages",
+		Long:  "List packages installed in the local Typst package directory. Use --all to include cached packages.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				opt.Namespace = args[0]
+			}
+			return commands.List(opt)
+		},
+	}
+	c.Flags().BoolVarP(&opt.All, "all", "a", false, "Include packages in the Typst download cache")
+	c.Flags().BoolVarP(&opt.Tree, "tree", "t", false, "Display packages as a tree")
+	c.Flags().BoolVar(&opt.JSON, "json", false, "Output package list in JSON format")
+	return c
+}
+
+func newUninstallCmd() *cobra.Command {
+	var (
+		force  bool
+		dryRun bool
+	)
+	c := &cobra.Command{
+		Use:     "uninstall <target>",
+		Aliases: []string{"remove", "rm"},
+		Short:   "Remove installed packages",
+		Long: `Remove packages from the local Typst package directory.
+
+Target syntax:
+  @ns/pkg:ver   Remove a specific version
+  @ns/pkg       Remove all versions of a package
+  @ns           Remove an entire namespace
+  pkg:ver       Remove from @local (default namespace)
+  pkg           Remove all versions from @local`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commands.Uninstall(commands.UninstallOptions{
+				Target: args[0],
+				Force:  force,
+				DryRun: dryRun,
+			})
+		},
+	}
+	c.Flags().BoolVarP(&force, "force", "y", false, "Skip confirmation prompts")
+	registerDryRun(c, &dryRun, "Preview packages to remove without deleting them")
+	return c
+}
+
+func newCloneCmd() *cobra.Command {
+	var (
+		force  bool
+		dryRun bool
+	)
+	c := &cobra.Command{
+		Use:   "clone <package> [destination]",
+		Short: "Download package source from Typst Universe",
+		Long:  "Download and extract a package from the Typst Universe CDN. Accepts @preview/name:version, name:version, or name (latest).",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dest := ""
+			if len(args) == 2 {
+				dest = args[1]
+			}
+			return commands.Clone(commands.CloneOptions{
+				Spec:   args[0],
+				Dest:   dest,
+				Force:  force,
+				DryRun: dryRun,
+			})
+		},
+	}
+	c.Flags().BoolVarP(&force, "force", "f", false, "Overwrite non-empty destination directory")
+	registerDryRun(c, &dryRun, "Preview the clone without downloading")
+	return c
+}
+
+func newCompletionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "completion <bash|zsh|fish|powershell>",
+		Short: "Generate shell completion scripts",
+		Long: `Generate shell completion scripts for typush.
+
+To load completions:
+
+Bash:
+  $ source <(typush completion bash)
+  # Or add to ~/.bashrc:
+  $ typush completion bash > /etc/bash_completion.d/typush
+
+Zsh:
+  $ typush completion zsh > "${fpath[1]}/_typush"
+  # Then restart your shell.
+
+Fish:
+  $ typush completion fish | source
+  # Or persist:
+  $ typush completion fish > ~/.config/fish/completions/typush.fish
+
+PowerShell:
+  PS> typush completion powershell | Out-String | Invoke-Expression`,
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root := cmd.Root()
+			switch args[0] {
+			case "bash":
+				return root.GenBashCompletionV2(os.Stdout, true)
+			case "zsh":
+				return root.GenZshCompletion(os.Stdout)
+			case "fish":
+				return root.GenFishCompletion(os.Stdout, true)
+			case "powershell":
+				return root.GenPowerShellCompletionWithDesc(os.Stdout)
+			default:
+				return fmt.Errorf("unsupported shell %q (supported: bash, zsh, fish, powershell)", args[0])
+			}
+		},
+	}
 }
